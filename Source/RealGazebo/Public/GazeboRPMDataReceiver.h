@@ -59,11 +59,6 @@ protected:
     UUDPReceiver* UDPReceiver;
 
 private:
-    // Packet sizes for different vehicle types
-    static const int32 BOAT_RPM_PACKET_SIZE = 11;   // 3 header + 2 motors (8 bytes)
-    static const int32 ROVER_RPM_PACKET_SIZE = 19;  // 3 header + 4 motors (16 bytes)
-    static const int32 IRIS_RPM_PACKET_SIZE = 19;   // 3 header + 4 motors (16 bytes)
-
     // Event handlers
     UFUNCTION()
     void OnUDPDataReceived(const FUDPData& ReceivedData);
@@ -71,6 +66,8 @@ private:
     // Data parsing
     bool ParseRPMData(const TArray<uint8>& RawData, FGazeboRPMData& OutRPMData);
     float BytesToFloat(const TArray<uint8>& Data, int32 StartIndex);
-    int32 GetExpectedPacketSize(EGazeboVehicleType VehicleType) const;
-    int32 GetMotorCount(EGazeboVehicleType VehicleType) const;
+    int32 GetExpectedPacketSize(uint8 VehicleType) const;
+    int32 GetMotorCount(uint8 VehicleType) const;
+    FGazeboVehicleTableRow* GetVehicleInfo(uint8 VehicleType) const;
 };
+    

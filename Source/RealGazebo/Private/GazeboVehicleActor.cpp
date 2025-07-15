@@ -17,7 +17,7 @@ AGazeboVehicleActor::AGazeboVehicleActor()
 
     // Initialize variables
     VehicleNum = 0;
-    VehicleType = EGazeboVehicleType::Iris;
+    VehicleType = 0;
     bHasTarget = false;
     LastUpdateTime = 0.0f;
     TargetPosition = FVector::ZeroVector;
@@ -30,10 +30,8 @@ void AGazeboVehicleActor::BeginPlay()
     
     SetupVehicleMesh();
     
-    UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleActor: %s_%d spawned"), 
-           VehicleType == EGazeboVehicleType::Iris ? TEXT("iris") :
-           VehicleType == EGazeboVehicleType::Rover ? TEXT("rover") : TEXT("boat"),
-           VehicleNum);
+    UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleActor: Vehicle_%d (Type: %d) spawned"), 
+           VehicleNum, VehicleType);
 }
 
 void AGazeboVehicleActor::Tick(float DeltaTime)

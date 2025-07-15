@@ -4,15 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Engine/Engine.h"
+#include "Engine/DataTable.h"
 #include "GazeboVehicleData.generated.h"
-
-UENUM(BlueprintType)
-enum class EGazeboVehicleType : uint8
-{
-    Iris = 0,
-    Rover = 1,
-    Boat = 2
-};
 
 USTRUCT(BlueprintType)
 struct FGazeboPoseData
@@ -23,7 +16,7 @@ struct FGazeboPoseData
     uint8 VehicleNum;
 
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
-    EGazeboVehicleType VehicleType;
+    uint8 VehicleType;
 
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
     uint8 MessageID;
@@ -37,7 +30,7 @@ struct FGazeboPoseData
     FGazeboPoseData()
     {
         VehicleNum = 0;
-        VehicleType = EGazeboVehicleType::Iris;
+        VehicleType = 0;
         MessageID = 1; // Pose data message ID
         Position = FVector::ZeroVector;
         Rotation = FRotator::ZeroRotator;
@@ -53,7 +46,7 @@ struct FGazeboRPMData
     uint8 VehicleNum;
 
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
-    EGazeboVehicleType VehicleType;
+    uint8 VehicleType;
 
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
     uint8 MessageID;
@@ -64,9 +57,40 @@ struct FGazeboRPMData
     FGazeboRPMData()
     {
         VehicleNum = 0;
-        VehicleType = EGazeboVehicleType::Iris;
+        VehicleType = 0;
         MessageID = 2; // RPM data message ID
         MotorRPMs.Empty();
+    }
+};
+
+USTRUCT(BlueprintType, meta = (DataTable = "true"))
+struct REALGAZEBO_API FGazeboVehicleTableRow : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle Info", meta = (DisplayName = "Vehicle Name"))
+    FString VehicleName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle Info", meta = (DisplayName = "Vehicle Type Code"))
+    uint8 VehicleTypeCode;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle Info", meta = (DisplayName = "Motor Count"))
+    int32 MotorCount;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle Info", meta = (DisplayName = "Vehicle Actor Class"))
+    TSubclassOf<class AGazeboVehicleActor> VehicleActorClass;
+
+    FGazeboVehicleTableRow()
+    {
+        VehicleName = TEXT("Unknown");
+        VehicleTypeCode = 0;
+        MotorCount = 0;
+        VehicleActorClass = nullptr;
+    }
+
+    int32 GetRPMPacketSize() const
+    {
+        return 3 + (MotorCount * 4); // 3 header bytes + 4 bytes per motor
     }
 };
 

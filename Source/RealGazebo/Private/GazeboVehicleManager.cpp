@@ -90,10 +90,42 @@ TArray<AGazeboVehicleActor*> AGazeboVehicleManager::GetAllVehicles() const
     return Vehicles;
 }
 
-AGazeboVehicleActor* AGazeboVehicleManager::FindVehicle(uint8 VehicleNum, EGazeboVehicleType VehicleType) const
+AGazeboVehicleActor* AGazeboVehicleManager::FindVehicle(uint8 VehicleNum, uint8 VehicleType) const
 {
     FString VehicleKey = GetVehicleKey(VehicleNum, VehicleType);
     return SpawnedVehicles.FindRef(VehicleKey);
+}
+
+bool AGazeboVehicleManager::GetVehicleInfo(uint8 VehicleType, FGazeboVehicleTableRow& OutVehicleInfo) const
+{
+    FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfoInternal(VehicleType);
+    if (VehicleInfo)
+    {
+        OutVehicleInfo = *VehicleInfo;
+        return true;
+    }
+    return false;
+}
+
+FGazeboVehicleTableRow* AGazeboVehicleManager::GetVehicleInfoInternal(uint8 VehicleType) const
+{
+    if (!VehicleDataTable)
+    {
+        return nullptr;
+    }
+
+    TArray<FGazeboVehicleTableRow*> AllRows;
+    VehicleDataTable->GetAllRows<FGazeboVehicleTableRow>(TEXT("GetVehicleInfo"), AllRows);
+
+    for (FGazeboVehicleTableRow* Row : AllRows)
+    {
+        if (Row && Row->VehicleTypeCode == VehicleType)
+        {
+            return Row;
+        }
+    }
+
+    return nullptr;
 }
 
 void AGazeboVehicleManager::OnVehiclePoseDataReceived(const FGazeboPoseData& VehicleData)
@@ -111,8 +143,11 @@ void AGazeboVehicleManager::OnVehiclePoseDataReceived(const FGazeboPoseData& Veh
             SpawnedVehicles.Add(VehicleKey, Vehicle);
             TotalVehiclesSpawned++;
             
-            UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleManager: Spawned %s (Total: %d)"), 
-                   *VehicleKey, TotalVehiclesSpawned);
+            FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfoInternal(VehicleData.VehicleType);
+            FString VehicleName = VehicleInfo ? VehicleInfo->VehicleName : TEXT("Unknown");
+            
+            UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleManager: Spawned %s_%d (Total: %d)"), 
+                   *VehicleName, VehicleData.VehicleNum, TotalVehiclesSpawned);
         }
     }
     
@@ -143,8 +178,7 @@ AGazeboVehicleActor* AGazeboVehicleManager::SpawnVehicle(const FGazeboPoseData& 
     
     if (!VehicleClass)
     {
-        UE_LOG(LogTemp, Error, TEXT("GazeboVehicleManager: No vehicle class set for type %d"), 
-               (int32)VehicleData.VehicleType);
+        UE_LOG(LogTemp, Error, TEXT("GazeboVehicleManager: No vehicle class found for type %d"), VehicleData.VehicleType);
         return nullptr;
     }
 
@@ -163,8 +197,9 @@ AGazeboVehicleActor* AGazeboVehicleManager::SpawnVehicle(const FGazeboPoseData& 
         NewVehicle->VehicleType = VehicleData.VehicleType;
         
         // Set vehicle name
-        FString VehicleName = GetVehicleKey(VehicleData);
-        NewVehicle->SetActorLabel(VehicleName);
+        FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfoInternal(VehicleData.VehicleType);
+        FString VehicleName = VehicleInfo ? VehicleInfo->VehicleName : TEXT("Unknown");
+        NewVehicle->SetActorLabel(FString::Printf(TEXT("%s_%d"), *VehicleName, VehicleData.VehicleNum));
     }
 
     return NewVehicle;
@@ -175,30 +210,20 @@ FString AGazeboVehicleManager::GetVehicleKey(const FGazeboPoseData& VehicleData)
     return GetVehicleKey(VehicleData.VehicleNum, VehicleData.VehicleType);
 }
 
-FString AGazeboVehicleManager::GetVehicleKey(uint8 VehicleNum, EGazeboVehicleType VehicleType) const
+FString AGazeboVehicleManager::GetVehicleKey(uint8 VehicleNum, uint8 VehicleType) const
 {
-    FString TypeStr;
-    switch (VehicleType)
-    {
-    case EGazeboVehicleType::Iris: TypeStr = TEXT("iris"); break;
-    case EGazeboVehicleType::Rover: TypeStr = TEXT("rover"); break;
-    case EGazeboVehicleType::Boat: TypeStr = TEXT("boat"); break;
-    }
-    return FString::Printf(TEXT("%s_%d"), *TypeStr, VehicleNum);
+    FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfoInternal(VehicleType);
+    FString VehicleName = VehicleInfo ? VehicleInfo->VehicleName : TEXT("Unknown");
+    return FString::Printf(TEXT("%s_%d"), *VehicleName, VehicleNum);
 }
 
-TSubclassOf<AGazeboVehicleActor> AGazeboVehicleManager::GetVehicleClassForType(EGazeboVehicleType VehicleType) const
+TSubclassOf<AGazeboVehicleActor> AGazeboVehicleManager::GetVehicleClassForType(uint8 VehicleType) const
 {
-    switch (VehicleType)
-    {
-    case EGazeboVehicleType::Iris: return IrisVehicleClass;
-    case EGazeboVehicleType::Rover: return RoverVehicleClass;
-    case EGazeboVehicleType::Boat: return BoatVehicleClass;
-    }
-    return nullptr;
+    FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfoInternal(VehicleType);
+    return VehicleInfo ? VehicleInfo->VehicleActorClass : nullptr;
 }
 
 FVector AGazeboVehicleManager::GetSpawnLocation(const FGazeboPoseData& VehicleData) const
 {
-    return VehicleData.Position + SpawnOffset;
+    return VehicleData.Position;
 }

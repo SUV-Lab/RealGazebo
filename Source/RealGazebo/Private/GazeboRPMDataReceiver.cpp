@@ -2,6 +2,7 @@
 
 #include "GazeboRPMDataReceiver.h"
 #include "Engine/Engine.h"
+#include "GazeboVehicleManager.h"
 
 UGazeboRPMDataReceiver::UGazeboRPMDataReceiver()
 {
@@ -95,12 +96,11 @@ void UGazeboRPMDataReceiver::OnUDPDataReceived(const FUDPData& ReceivedData)
                 MotorRPMsStr += FString::Printf(TEXT("M%d:%.1f "), i, RPMData.MotorRPMs[i]);
             }
             
-            UE_LOG(LogTemp, Log, TEXT("GazeboRPMDataReceiver: %s - %s"),
-                   *FString::Printf(TEXT("%s_%d"), 
-                                   RPMData.VehicleType == EGazeboVehicleType::Iris ? TEXT("iris") :
-                                   RPMData.VehicleType == EGazeboVehicleType::Rover ? TEXT("rover") : TEXT("boat"),
-                                   RPMData.VehicleNum),
-                   *MotorRPMsStr);
+            FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfo(RPMData.VehicleType);
+            FString VehicleName = VehicleInfo ? VehicleInfo->VehicleName : TEXT("Unknown");
+            
+            UE_LOG(LogTemp, Log, TEXT("GazeboRPMDataReceiver: %s_%d - %s"),
+                   *VehicleName, RPMData.VehicleNum, *MotorRPMsStr);
         }
 
         OnVehicleRPMReceived.Broadcast(RPMData);
@@ -120,7 +120,7 @@ bool UGazeboRPMDataReceiver::ParseRPMData(const TArray<uint8>& RawData, FGazeboR
 
     // Parse header
     OutRPMData.VehicleNum = RawData[0];
-    OutRPMData.VehicleType = static_cast<EGazeboVehicleType>(RawData[1]);
+    OutRPMData.VehicleType = RawData[1];
     OutRPMData.MessageID = RawData[2];
 
     // Validate message ID for RPM data
@@ -131,7 +131,7 @@ bool UGazeboRPMDataReceiver::ParseRPMData(const TArray<uint8>& RawData, FGazeboR
 
     // Validate packet size
     int32 ExpectedSize = GetExpectedPacketSize(OutRPMData.VehicleType);
-    if (RawData.Num() != ExpectedSize)
+    if (ExpectedSize == 0 || RawData.Num() != ExpectedSize)
     {
         return false;
     }
@@ -173,24 +173,45 @@ float UGazeboRPMDataReceiver::BytesToFloat(const TArray<uint8>& Data, int32 Star
     return converter.value;
 }
 
-int32 UGazeboRPMDataReceiver::GetExpectedPacketSize(EGazeboVehicleType VehicleType) const
+int32 UGazeboRPMDataReceiver::GetExpectedPacketSize(uint8 VehicleType) const
 {
-    switch (VehicleType)
-    {
-    case EGazeboVehicleType::Boat: return BOAT_RPM_PACKET_SIZE;
-    case EGazeboVehicleType::Rover: return ROVER_RPM_PACKET_SIZE;
-    case EGazeboVehicleType::Iris: return IRIS_RPM_PACKET_SIZE;
-    }
-    return 0;
+    FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfo(VehicleType);
+    return VehicleInfo ? VehicleInfo->GetRPMPacketSize() : 0;
 }
 
-int32 UGazeboRPMDataReceiver::GetMotorCount(EGazeboVehicleType VehicleType) const
+int32 UGazeboRPMDataReceiver::GetMotorCount(uint8 VehicleType) const
 {
-    switch (VehicleType)
+    FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfo(VehicleType);
+    return VehicleInfo ? VehicleInfo->MotorCount : 0;
+}
+
+FGazeboVehicleTableRow* UGazeboRPMDataReceiver::GetVehicleInfo(uint8 VehicleType) const
+{
+    // Get VehicleDataTable from the owner (GazeboVehicleManager)
+    UDataTable* VehicleDataTable = nullptr;
+    if (AActor* Owner = GetOwner())
     {
-    case EGazeboVehicleType::Boat: return 2;
-    case EGazeboVehicleType::Rover: return 4;
-    case EGazeboVehicleType::Iris: return 4;
+        if (AGazeboVehicleManager* Manager = Cast<AGazeboVehicleManager>(Owner))
+        {
+            VehicleDataTable = Manager->VehicleDataTable;
+        }
     }
-    return 0;
+
+    if (!VehicleDataTable)
+    {
+        return nullptr;
+    }
+
+    TArray<FGazeboVehicleTableRow*> AllRows;
+    VehicleDataTable->GetAllRows<FGazeboVehicleTableRow>(TEXT("GetVehicleInfo"), AllRows);
+
+    for (FGazeboVehicleTableRow* Row : AllRows)
+    {
+        if (Row && Row->VehicleTypeCode == VehicleType)
+        {
+            return Row;
+        }
+    }
+
+    return nullptr;
 }

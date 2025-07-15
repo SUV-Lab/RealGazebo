@@ -96,11 +96,8 @@ void UGazeboPoseDataReceiver::OnUDPDataReceived(const FUDPData& ReceivedData)
         
         if (bLogParsedData)
         {
-            UE_LOG(LogTemp, Log, TEXT("GazeboPoseDataReceiver: %s - Pos(%.4f,%.4f,%.4f) Rot(%.4f,%.4f,%.4f)"),
-                   *FString::Printf(TEXT("%s_%d"), 
-                                   PoseData.VehicleType == EGazeboVehicleType::Iris ? TEXT("iris") :
-                                   PoseData.VehicleType == EGazeboVehicleType::Rover ? TEXT("rover") : TEXT("boat"),
-                                   PoseData.VehicleNum),
+            UE_LOG(LogTemp, Log, TEXT("GazeboPoseDataReceiver: Vehicle_%d (Type: %d) - Pos(%.4f,%.4f,%.4f) Rot(%.4f,%.4f,%.4f)"),
+                   PoseData.VehicleNum, PoseData.VehicleType,
                    PoseData.Position.X, PoseData.Position.Y, PoseData.Position.Z,
                    PoseData.Rotation.Roll, PoseData.Rotation.Pitch, PoseData.Rotation.Yaw);
         }
@@ -122,7 +119,7 @@ bool UGazeboPoseDataReceiver::ParsePoseData(const TArray<uint8>& RawData, FGazeb
 
     // Parse header
     OutPoseData.VehicleNum = RawData[0];
-    OutPoseData.VehicleType = static_cast<EGazeboVehicleType>(RawData[1]);
+    OutPoseData.VehicleType = RawData[1];
     OutPoseData.MessageID = RawData[2];
 
     // Validate message ID for pose data

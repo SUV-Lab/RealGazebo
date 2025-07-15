@@ -28,7 +28,7 @@ public:
     uint8 VehicleNum;
 
     UPROPERTY(BlueprintReadWrite, Category = "RealGazebo|Vehicle Info")
-    EGazeboVehicleType VehicleType;
+    uint8 VehicleType;
 
     // Components
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
