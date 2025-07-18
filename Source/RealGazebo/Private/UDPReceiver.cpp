@@ -18,7 +18,7 @@ UUDPReceiver::~UUDPReceiver()
     StopListening();
 }
 
-bool UUDPReceiver::StartListening(int32 Port)
+bool UUDPReceiver::StartListening(int32 Port, const FString& IPAddress)
 {
     if (bIsListening)
     {
@@ -48,13 +48,25 @@ bool UUDPReceiver::StartListening(int32 Port)
 
     // Create address for binding
     TSharedRef<FInternetAddr> LocalAddr = SocketSubsystem->CreateInternetAddr();
-    LocalAddr->SetAnyAddress();
+    
+    // Set IP address (default to localhost if not specified)
+    FString BindIP = IPAddress.IsEmpty() ? TEXT("127.0.0.1") : IPAddress;
+    bool bIsValid = false;
+    LocalAddr->SetIp(*BindIP, bIsValid);
+    
+    if (!bIsValid)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Invalid IP address: %s"), *BindIP);
+        CleanupSocket();
+        return false;
+    }
+    
     LocalAddr->SetPort(ListenPort);
 
     // Bind socket to address
     if (!ListenSocket->Bind(*LocalAddr))
     {
-        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Failed to bind UDP socket to port %d"), ListenPort);
+        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Failed to bind UDP socket to %s:%d"), *BindIP, ListenPort);
         CleanupSocket();
         return false;
     }
@@ -69,7 +81,7 @@ bool UUDPReceiver::StartListening(int32 Port)
     // Start receiver thread
     ReceiverThread = FRunnableThread::Create(this, TEXT("UDPReceiverThread"), 0, TPri_Normal);
     
-    UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Started listening on port %d"), ListenPort);
+    UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Started listening on %s:%d"), *BindIP, ListenPort);
     return true;
 }
 

@@ -46,7 +46,7 @@ public:
     void UpdateVehiclePose(const FGazeboPoseData& PoseData);
 
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle")
-    void UpdateVehicleRPM(const FGazeboRPMData& RPMData);
+    void UpdateVehicleMotorSpeed(const FGazeboMotorSpeedData& MotorSpeedData);
 
     // Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Settings")
@@ -68,6 +68,6 @@ private:
     // Last update time for debugging
     float LastUpdateTime;
 
-    // Helper functions for RPM conversion
-    float ConvertRadiansToDegrees(float Radians) const;
+    // Helper functions for motor speed conversion
+    float ConvertRadiansPerSecToDegPerSec(float RadiansPerSec) const;
 };

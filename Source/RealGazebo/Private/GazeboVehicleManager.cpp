@@ -9,11 +9,8 @@ AGazeboVehicleManager::AGazeboVehicleManager()
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.TickInterval = 1.0f;
 
-    // Create pose data receiver component
-    PoseDataReceiver = CreateDefaultSubobject<UGazeboPoseDataReceiver>(TEXT("PoseDataReceiver"));
-    
-    // Create RPM data receiver component
-    RPMDataReceiver = CreateDefaultSubobject<UGazeboRPMDataReceiver>(TEXT("RPMDataReceiver"));
+    // Create unified data receiver component
+    UnifiedDataReceiver = CreateDefaultSubobject<UGazeboUnifiedDataReceiver>(TEXT("UnifiedDataReceiver"));
 
     TotalVehiclesSpawned = 0;
 }
@@ -22,14 +19,11 @@ void AGazeboVehicleManager::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (PoseDataReceiver)
+    // Bind events to unified receiver (all properties are set directly on component)
+    if (UnifiedDataReceiver)
     {
-        PoseDataReceiver->OnVehiclePoseReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehiclePoseDataReceived);
-    }
-
-    if (RPMDataReceiver)
-    {
-        RPMDataReceiver->OnVehicleRPMReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehicleRPMDataReceived);
+        UnifiedDataReceiver->OnVehiclePoseReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehiclePoseDataReceived);
+        UnifiedDataReceiver->OnVehicleMotorSpeedReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehicleMotorSpeedDataReceived);
     }
 
     UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleManager: Started - Auto spawn: %s"), 
@@ -38,14 +32,10 @@ void AGazeboVehicleManager::BeginPlay()
 
 void AGazeboVehicleManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    if (PoseDataReceiver)
+    if (UnifiedDataReceiver)
     {
-        PoseDataReceiver->OnVehiclePoseReceived.RemoveAll(this);
-    }
-
-    if (RPMDataReceiver)
-    {
-        RPMDataReceiver->OnVehicleRPMReceived.RemoveAll(this);
+        UnifiedDataReceiver->OnVehiclePoseReceived.RemoveAll(this);
+        UnifiedDataReceiver->OnVehicleMotorSpeedReceived.RemoveAll(this);
     }
 
     ClearAllVehicles();
@@ -57,11 +47,11 @@ void AGazeboVehicleManager::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 
     // Periodic status update
-    if (GEngine && PoseDataReceiver && PoseDataReceiver->bLogParsedData)
+    if (GEngine && UnifiedDataReceiver && UnifiedDataReceiver->bLogParsedData)
     {
         GEngine->AddOnScreenDebugMessage(1, 1.1f, FColor::Green,
-            FString::Printf(TEXT("Gazebo Manager: %d vehicles | %d pose packets"),
-                          GetActiveVehicleCount(), PoseDataReceiver->ValidPosePacketsReceived));
+            FString::Printf(TEXT("Gazebo Manager: %d vehicles | %d pose | %d motor speed packets"),
+                          GetActiveVehicleCount(), UnifiedDataReceiver->ValidPosePacketsReceived, UnifiedDataReceiver->ValidMotorSpeedPacketsReceived));
     }
 }
 
@@ -158,17 +148,17 @@ void AGazeboVehicleManager::OnVehiclePoseDataReceived(const FGazeboPoseData& Veh
     }
 }
 
-void AGazeboVehicleManager::OnVehicleRPMDataReceived(const FGazeboRPMData& RPMData)
+void AGazeboVehicleManager::OnVehicleMotorSpeedDataReceived(const FGazeboMotorSpeedData& MotorSpeedData)
 {
-    FString VehicleKey = GetVehicleKey(RPMData.VehicleNum, RPMData.VehicleType);
+    FString VehicleKey = GetVehicleKey(MotorSpeedData.VehicleNum, MotorSpeedData.VehicleType);
     
     // Find existing vehicle
     AGazeboVehicleActor* Vehicle = SpawnedVehicles.FindRef(VehicleKey);
     
-    // Update vehicle RPM if it exists
+    // Update vehicle motor speed if it exists
     if (Vehicle && IsValid(Vehicle))
     {
-        Vehicle->UpdateVehicleRPM(RPMData);
+        Vehicle->UpdateVehicleMotorSpeed(MotorSpeedData);
     }
 }
 

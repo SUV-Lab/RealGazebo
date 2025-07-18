@@ -25,8 +25,6 @@ public class RealGazebo : ModuleRules
             new string[]
             {
                 "Core",
-                "CoreUObject",
-                "Engine",
                 // These are public so other modules can use your DataTable types
             }
         );
@@ -35,6 +33,8 @@ public class RealGazebo : ModuleRules
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
+                "coreUobject",
+                "Engine",
                 // UI
                 "Slate",
                 "SlateCore",
