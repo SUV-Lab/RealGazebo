@@ -19,7 +19,9 @@ AGazeboVehicleActor::AGazeboVehicleActor()
     VehicleNum = 0;
     VehicleType = 0;
     bHasTarget = false;
+    bHasServoTarget = false;
     LastUpdateTime = 0.0f;
+    LastServoUpdateTime = 0.0f;
     TargetPosition = FVector::ZeroVector;
     TargetRotation = FRotator::ZeroRotator;
 }
@@ -41,6 +43,11 @@ void AGazeboVehicleActor::Tick(float DeltaTime)
     if (bSmoothMovement && bHasTarget)
     {
         SmoothMoveToTarget(DeltaTime);
+    }
+
+    if (bSmoothMovement && bHasServoTarget)
+    {
+        SmoothMoveServosToTarget(DeltaTime);
     }
 }
 
@@ -110,6 +117,57 @@ void AGazeboVehicleActor::SmoothMoveToTarget(float DeltaTime)
     }
 }
 
+void AGazeboVehicleActor::SmoothMoveServosToTarget(float DeltaTime)
+{
+    bool bAllServosAtTarget = true;
+    int32 NumServosToUpdate = FMath::Min3(ControllableComponents.Num(), TargetServoPositions.Num(), TargetServoRotations.Num());
+
+    for (int32 i = 0; i < NumServosToUpdate; ++i)
+    {
+        if (!IsValid(ControllableComponents[i]))
+        {
+            continue;
+        }
+
+        USceneComponent* ServoComponent = ControllableComponents[i];
+        const FVector& ServoTargetLocation = TargetServoPositions[i];
+        const FRotator& ServoTargetRotation = TargetServoRotations[i];
+
+        // Interpolate Position
+        FVector NewLocation = FMath::VInterpTo(ServoComponent->GetRelativeLocation(), ServoTargetLocation, DeltaTime, InterpolationSpeed);
+        ServoComponent->SetRelativeLocation(NewLocation);
+
+        // Interpolate Rotation
+        FRotator NewRotation = FMath::RInterpTo(ServoComponent->GetRelativeRotation(), ServoTargetRotation, DeltaTime, InterpolationSpeed);
+        ServoComponent->SetRelativeRotation(NewRotation);
+
+        // Check if this servo is close enough to its target
+        float LocationDistance = FVector::Dist(NewLocation, ServoTargetLocation);
+        float RotationDiff = FMath::Abs(FRotator::ClampAxis(NewRotation.Yaw - ServoTargetRotation.Yaw)) +
+                             FMath::Abs(FRotator::ClampAxis(NewRotation.Pitch - ServoTargetRotation.Pitch)) +
+                             FMath::Abs(FRotator::ClampAxis(NewRotation.Roll - ServoTargetRotation.Roll));
+
+        if (LocationDistance > 2.0f || RotationDiff > 2.0f) // 2cm position, 2 degree rotation tolerance
+        {
+            bAllServosAtTarget = false;
+        }
+    }
+
+    if (bAllServosAtTarget)
+    {
+        bHasServoTarget = false;
+        // Snap to final positions for precision
+        for (int32 i = 0; i < NumServosToUpdate; ++i)
+        {
+            if (IsValid(ControllableComponents[i]))
+            {
+                ControllableComponents[i]->SetRelativeLocation(TargetServoPositions[i]);
+                ControllableComponents[i]->SetRelativeRotation(TargetServoRotations[i]);
+            }
+        }
+    }
+}
+
 void AGazeboVehicleActor::UpdateVehicleRPM(const FGazeboRPMData& RPMData)
 {
     // Update rotating components with RPM data
@@ -123,6 +181,30 @@ void AGazeboVehicleActor::UpdateVehicleRPM(const FGazeboRPMData& RPMData)
             // Update rotation rate (ensure Z-axis rotation)
             FRotator NewRotationRate = FRotator(0.0f, DegreesPerSecond, 0.0f); // Z-axis spin  →  assign to Yaw
             RotatingComponents[i]->RotationRate = NewRotationRate;
+        }
+    }
+}
+
+void AGazeboVehicleActor::UpdateVehicleServo(const FGazeboServoData& ServoData)
+{
+    LastServoUpdateTime = GetWorld()->GetTimeSeconds();
+
+    if (bSmoothMovement)
+    {
+        TargetServoPositions = ServoData.ServoPositions;
+        TargetServoRotations = ServoData.ServoRotations;
+        bHasServoTarget = true;
+    }
+    else
+    {
+        int32 NumServosToUpdate = FMath::Min3(ControllableComponents.Num(), ServoData.ServoPositions.Num(), ServoData.ServoRotations.Num());
+        for (int32 i = 0; i < NumServosToUpdate; ++i)
+        {
+            if (IsValid(ControllableComponents[i]))
+            {
+                ControllableComponents[i]->SetRelativeLocation(ServoData.ServoPositions[i]);
+                ControllableComponents[i]->SetRelativeRotation(ServoData.ServoRotations[i]);
+            }
         }
     }
 }

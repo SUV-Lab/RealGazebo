@@ -31,6 +31,9 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
     UGazeboRPMDataReceiver* RPMDataReceiver;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
+    UGazeboServoDataReceiver* ServoDataReceiver;
+
     // Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration")
     class UDataTable* VehicleDataTable;
@@ -70,6 +73,9 @@ private:
 
     UFUNCTION()
     void OnVehicleRPMDataReceived(const FGazeboRPMData& RPMData);
+
+    UFUNCTION()
+    void OnVehicleServoDataReceived(const FGazeboServoData& ServoData);
 
     // Vehicle management
     AGazeboVehicleActor* SpawnVehicle(const FGazeboPoseData& VehicleData);

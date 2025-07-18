@@ -63,6 +63,36 @@ struct FGazeboRPMData
     }
 };
 
+USTRUCT(BlueprintType)
+struct FGazeboServoData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
+    uint8 VehicleNum;
+
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
+    uint8 VehicleType;
+
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
+    uint8 MessageID;
+
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Servo Data")
+    TArray<FVector> ServoPositions;
+
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Servo Data")
+    TArray<FRotator> ServoRotations;
+
+    FGazeboServoData()
+    {
+        VehicleNum = 0;
+        VehicleType = 0;
+        MessageID = 3; // Servo data message ID.
+        ServoPositions.Empty();
+        ServoRotations.Empty();
+    }
+};
+
 USTRUCT(BlueprintType, meta = (DataTable = "true"))
 struct REALGAZEBO_API FGazeboVehicleTableRow : public FTableRowBase
 {
@@ -77,6 +107,9 @@ struct REALGAZEBO_API FGazeboVehicleTableRow : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle Info", meta = (DisplayName = "Motor Count"))
     int32 MotorCount;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle Info", meta = (DisplayName = "Servo Count"))
+    int32 ServoCount;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vehicle Info", meta = (DisplayName = "Vehicle Actor Class"))
     TSubclassOf<class AGazeboVehicleActor> VehicleActorClass;
 
@@ -85,6 +118,7 @@ struct REALGAZEBO_API FGazeboVehicleTableRow : public FTableRowBase
         VehicleName = TEXT("Unknown");
         VehicleTypeCode = 0;
         MotorCount = 0;
+        ServoCount = 0;
         VehicleActorClass = nullptr;
     }
 
@@ -92,7 +126,14 @@ struct REALGAZEBO_API FGazeboVehicleTableRow : public FTableRowBase
     {
         return 3 + (MotorCount * 4); // 3 header bytes + 4 bytes per motor
     }
+    
+    int32 GetServoPacketSize() const
+    {
+        // 3 header bytes + 24 bytes per servo (6 floats for XYZ + RPY * 4 bytes)
+        return 3 + (ServoCount * 24);
+    }
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGazeboVehicleDataReceived, const FGazeboPoseData&, VehicleData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGazeboRPMDataReceived, const FGazeboRPMData&, RPMData);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGazeboServoDataReceived, const FGazeboServoData&, ServoData);

@@ -3,6 +3,7 @@
 #include "GazeboVehicleManager.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GazeboServoDataReceiver.h"
 
 AGazeboVehicleManager::AGazeboVehicleManager()
 {
@@ -14,6 +15,9 @@ AGazeboVehicleManager::AGazeboVehicleManager()
     
     // Create RPM data receiver component
     RPMDataReceiver = CreateDefaultSubobject<UGazeboRPMDataReceiver>(TEXT("RPMDataReceiver"));
+
+    // Create Servo data receiver component
+    ServoDataReceiver = CreateDefaultSubobject<UGazeboServoDataReceiver>(TEXT("ServoDataReceiver"));
 
     TotalVehiclesSpawned = 0;
 }
@@ -32,6 +36,11 @@ void AGazeboVehicleManager::BeginPlay()
         RPMDataReceiver->OnVehicleRPMReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehicleRPMDataReceived);
     }
 
+    if (ServoDataReceiver)
+    {
+        ServoDataReceiver->OnVehicleServoReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehicleServoDataReceived);
+    }
+
     UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleManager: Started - Auto spawn: %s"), 
            bAutoSpawnVehicles ? TEXT("ON") : TEXT("OFF"));
 }
@@ -46,6 +55,11 @@ void AGazeboVehicleManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
     if (RPMDataReceiver)
     {
         RPMDataReceiver->OnVehicleRPMReceived.RemoveAll(this);
+    }
+
+    if (ServoDataReceiver)
+    {
+        ServoDataReceiver->OnVehicleServoReceived.RemoveAll(this);
     }
 
     ClearAllVehicles();
@@ -169,6 +183,20 @@ void AGazeboVehicleManager::OnVehicleRPMDataReceived(const FGazeboRPMData& RPMDa
     if (Vehicle && IsValid(Vehicle))
     {
         Vehicle->UpdateVehicleRPM(RPMData);
+    }
+}
+
+void AGazeboVehicleManager::OnVehicleServoDataReceived(const FGazeboServoData& ServoData)
+{
+    FString VehicleKey = GetVehicleKey(ServoData.VehicleNum, ServoData.VehicleType);
+    
+    // Find existing vehicle
+    AGazeboVehicleActor* Vehicle = SpawnedVehicles.FindRef(VehicleKey);
+    
+    // Update vehicle servo if it exists
+    if (Vehicle && IsValid(Vehicle))
+    {
+        Vehicle->UpdateVehicleServo(ServoData);
     }
 }
 
