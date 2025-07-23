@@ -196,6 +196,8 @@ AGazeboVehicleActor* AGazeboVehicleManager::SpawnVehicle(const FGazeboPoseData& 
 
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    FString VehicleName = GetVehicleKey(VehicleData);
+    SpawnParams.Name = FName(VehicleName);
 
     AGazeboVehicleActor* NewVehicle = GetWorld()->SpawnActor<AGazeboVehicleActor>(
         VehicleClass, SpawnLocation, SpawnRotation, SpawnParams);
@@ -206,9 +208,8 @@ AGazeboVehicleActor* AGazeboVehicleManager::SpawnVehicle(const FGazeboPoseData& 
         NewVehicle->VehicleType = VehicleData.VehicleType;
         
         // Set vehicle name
-        FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfoInternal(VehicleData.VehicleType);
-        FString VehicleName = VehicleInfo ? VehicleInfo->VehicleName : TEXT("Unknown");
-        NewVehicle->SetActorLabel(FString::Printf(TEXT("%s_%d"), *VehicleName, VehicleData.VehicleNum));
+
+        NewVehicle->SetActorLabel(VehicleName);
     }
 
     return NewVehicle;
