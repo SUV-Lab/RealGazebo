@@ -28,7 +28,7 @@ public:
     int32 ListenPort = 5005;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Unified Data Receiver")
-    FString ServerIPAddress = TEXT("127.0.0.1");
+    FString ServerIPAddress = TEXT("");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Unified Data Receiver")
     bool bAutoStart = true;

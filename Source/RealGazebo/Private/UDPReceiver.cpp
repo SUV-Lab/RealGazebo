@@ -49,16 +49,24 @@ bool UUDPReceiver::StartListening(int32 Port, const FString& IPAddress)
     // Create address for binding
     TSharedRef<FInternetAddr> LocalAddr = SocketSubsystem->CreateInternetAddr();
     
-    // Set IP address (default to localhost if not specified)
-    FString BindIP = IPAddress.IsEmpty() ? TEXT("127.0.0.1") : IPAddress;
-    bool bIsValid = false;
-    LocalAddr->SetIp(*BindIP, bIsValid);
-    
-    if (!bIsValid)
+    // Set IP address - if empty/not specified, bind to all addresses (any address)
+    if (IPAddress.IsEmpty())
     {
-        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Invalid IP address: %s"), *BindIP);
-        CleanupSocket();
-        return false;
+        LocalAddr->SetAnyAddress();
+        UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Binding to all addresses (any address)"));
+    }
+    else
+    {
+        bool bIsValid = false;
+        LocalAddr->SetIp(*IPAddress, bIsValid);
+        
+        if (!bIsValid)
+        {
+            UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Invalid IP address: %s"), *IPAddress);
+            CleanupSocket();
+            return false;
+        }
+        UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Binding to specific IP: %s"), *IPAddress);
     }
     
     LocalAddr->SetPort(ListenPort);
@@ -66,7 +74,8 @@ bool UUDPReceiver::StartListening(int32 Port, const FString& IPAddress)
     // Bind socket to address
     if (!ListenSocket->Bind(*LocalAddr))
     {
-        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Failed to bind UDP socket to %s:%d"), *BindIP, ListenPort);
+        FString BindInfo = IPAddress.IsEmpty() ? TEXT("any address") : IPAddress;
+        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Failed to bind UDP socket to %s:%d"), *BindInfo, ListenPort);
         CleanupSocket();
         return false;
     }
@@ -81,7 +90,8 @@ bool UUDPReceiver::StartListening(int32 Port, const FString& IPAddress)
     // Start receiver thread
     ReceiverThread = FRunnableThread::Create(this, TEXT("UDPReceiverThread"), 0, TPri_Normal);
     
-    UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Started listening on %s:%d"), *BindIP, ListenPort);
+    FString BindInfo = IPAddress.IsEmpty() ? TEXT("any address") : IPAddress;
+    UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Started listening on %s:%d"), *BindInfo, ListenPort);
     return true;
 }
 
