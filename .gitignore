@@ -500,4 +500,8 @@ FodyWeavers.xsd
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
 
+# Claude Code
+CLAUDE.md
+.claude/
+
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,visualstudio,unrealengine
