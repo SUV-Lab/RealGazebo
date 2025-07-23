@@ -6,60 +6,60 @@ using System;
 
 public class RealGazebo : ModuleRules
 {
-	public RealGazebo(ReadOnlyTargetRules Target) : base(Target)
-	{
-		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
-		PublicIncludePaths.AddRange(
-			new string[] {
-				// ... add public include paths required here ...
-			}
-			);
-				
-		
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				// ... add other private include paths required here ...
-			}
-			);
-			
-		
-		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-				// ... add other public dependencies that you statically link with here ...
+    public RealGazebo(ReadOnlyTargetRules Target) : base(Target)
+    {
+        PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+        
+        PublicIncludePaths.AddRange(
+            new string[] {
+                // ... add public include paths required here ...
+            }
+            );
+                
+        
+        PrivateIncludePaths.AddRange(
+            new string[] {
+                // ... add other private include paths required here ...
+            }
+            );
+            
+        
+        PublicDependencyModuleNames.AddRange(
+            new string[]
+            {
+                "Core",
+                // ... add other public dependencies that you statically link with here ...
                 "RHI",
                 "RenderCore",
                 "Renderer",
                 "RHICore",
                 "Sockets",
                 "Networking"
-			}
-			);
-			
-		
-		PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore",
-				// ... add private dependencies that you statically link with here ...	
+            }
+            );
+            
+        
+        PrivateDependencyModuleNames.AddRange(
+            new string[]
+            {
+                "CoreUObject",
+                "Engine",
+                "Slate",
+                "SlateCore",
+                // ... add private dependencies that you statically link with here ...	
                 "EditorStyle",
                 "ToolMenus",
                 "Projects"
-			}
-			);
-		
-		
-		DynamicallyLoadedModuleNames.AddRange(
-			new string[]
-			{
-				// ... add any modules that your module loads dynamically here ...
-			}
-			);
+            }
+            );
+        
+        
+        DynamicallyLoadedModuleNames.AddRange(
+            new string[]
+            {
+                // ... add any modules that your module loads dynamically here ...
+            }
+            );
 
         // 플러그인 내장 GStreamer 라이브러리 경로 설정
         string PluginPath = Utils.MakePathRelativeTo(ModuleDirectory, Target.RelativeEnginePath);
@@ -299,5 +299,5 @@ public class RealGazebo : ModuleRules
 
         // 추가 링커 플래그
         PublicDefinitions.Add("LINUX_RPATH_ORIGIN=1");
-	}
+    }
 }

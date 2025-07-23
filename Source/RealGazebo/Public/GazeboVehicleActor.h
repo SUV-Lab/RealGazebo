@@ -28,7 +28,7 @@ public:
     uint8 VehicleNum;
 
     UPROPERTY(BlueprintReadWrite, Category = "RealGazebo|Vehicle Info")
-    EGazeboVehicleType VehicleType;
+    uint8 VehicleType;
 
     // Components
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
@@ -41,12 +41,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Rotating Components")
     TArray<URotatingMovementComponent*> RotatingComponents;
 
+    // Components that can be controlled by servo data (e.g., fins, turrets)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Components")
+    TArray<USceneComponent*> ControllableComponents;
+
     // Update functions
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle")
     void UpdateVehiclePose(const FGazeboPoseData& PoseData);
 
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle")
-    void UpdateVehicleRPM(const FGazeboRPMData& RPMData);
+    void UpdateVehicleMotorSpeed(const FGazeboMotorSpeedData& MotorSpeedData);
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle")
+    void UpdateVehicleServo(const FGazeboServoData& ServoData);
 
     // Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Settings")
@@ -61,13 +67,20 @@ protected:
     FRotator TargetRotation;
     bool bHasTarget;
 
+    // Target state for servo components
+    TArray<FVector> TargetServoPositions;
+    TArray<FRotator> TargetServoRotations;
+    bool bHasServoTarget;
+
     virtual void SetupVehicleMesh();
     void SmoothMoveToTarget(float DeltaTime);
+    void SmoothMoveServosToTarget(float DeltaTime);
 
 private:
     // Last update time for debugging
     float LastUpdateTime;
+    float LastServoUpdateTime;
 
-    // Helper functions for RPM conversion
-    float ConvertRadiansToDegrees(float Radians) const;
+    // Helper functions for motor speed conversion
+    float ConvertRadiansPerSecToDegPerSec(float RadiansPerSec) const;
 };

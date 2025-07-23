@@ -4,8 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "GazeboPoseDataReceiver.h"
-#include "GazeboRPMDataReceiver.h"
+#include "GazeboUnifiedDataReceiver.h"
 #include "GazeboVehicleActor.h"
 #include "GazeboVehicleManager.generated.h"
 
@@ -24,30 +23,20 @@ protected:
 public:
     virtual void Tick(float DeltaTime) override;
 
-    // Components
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
-    UGazeboPoseDataReceiver* PoseDataReceiver;
+    // Components ----
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
-    UGazeboRPMDataReceiver* RPMDataReceiver;
+    // GazeboUnifiedDataReceiver 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
+    UGazeboUnifiedDataReceiver* UnifiedDataReceiver;
 
-    // Configuration
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Classes")
-    TSubclassOf<AGazeboVehicleActor> IrisVehicleClass;
+    // Configuration  -----
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration")
+    class UDataTable* VehicleDataTable;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Classes")
-    TSubclassOf<AGazeboVehicleActor> RoverVehicleClass;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Classes")
-    TSubclassOf<AGazeboVehicleActor> BoatVehicleClass;
-
-    //UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Spawning Settings")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration|Spawning Settings")
     bool bAutoSpawnVehicles = true;
 
-    //UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Spawning Settings")
-    FVector SpawnOffset = FVector(0, 0, 0);
-
-    // Control functions
+    // Control functions ----
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Manager")
     void ClearAllVehicles();
 
@@ -58,7 +47,10 @@ public:
     TArray<AGazeboVehicleActor*> GetAllVehicles() const;
 
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Manager")
-    AGazeboVehicleActor* FindVehicle(uint8 VehicleNum, EGazeboVehicleType VehicleType) const;
+    AGazeboVehicleActor* FindVehicle(uint8 VehicleNum, uint8 VehicleType) const;
+
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Manager")
+    bool GetVehicleInfo(uint8 VehicleType, FGazeboVehicleTableRow& OutVehicleInfo) const;
 
 protected:
     // Vehicle tracking
@@ -75,12 +67,18 @@ private:
     void OnVehiclePoseDataReceived(const FGazeboPoseData& VehicleData);
 
     UFUNCTION()
-    void OnVehicleRPMDataReceived(const FGazeboRPMData& RPMData);
+    void OnVehicleMotorSpeedDataReceived(const FGazeboMotorSpeedData& MotorSpeedData);
+
+    UFUNCTION()
+    void OnVehicleServoDataReceived(const FGazeboServoData& ServoData);
 
     // Vehicle management
     AGazeboVehicleActor* SpawnVehicle(const FGazeboPoseData& VehicleData);
     FString GetVehicleKey(const FGazeboPoseData& VehicleData) const;
-    FString GetVehicleKey(uint8 VehicleNum, EGazeboVehicleType VehicleType) const;
-    TSubclassOf<AGazeboVehicleActor> GetVehicleClassForType(EGazeboVehicleType VehicleType) const;
+    FString GetVehicleKey(uint8 VehicleNum, uint8 VehicleType) const;
+    TSubclassOf<AGazeboVehicleActor> GetVehicleClassForType(uint8 VehicleType) const;
     FVector GetSpawnLocation(const FGazeboPoseData& VehicleData) const;
+
+    // Helper function for internal use (returns pointer)
+    FGazeboVehicleTableRow* GetVehicleInfoInternal(uint8 VehicleType) const;
 };

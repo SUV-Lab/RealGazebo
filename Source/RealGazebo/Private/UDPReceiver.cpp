@@ -18,7 +18,7 @@ UUDPReceiver::~UUDPReceiver()
     StopListening();
 }
 
-bool UUDPReceiver::StartListening(int32 Port)
+bool UUDPReceiver::StartListening(int32 Port, const FString& IPAddress)
 {
     if (bIsListening)
     {
@@ -48,13 +48,34 @@ bool UUDPReceiver::StartListening(int32 Port)
 
     // Create address for binding
     TSharedRef<FInternetAddr> LocalAddr = SocketSubsystem->CreateInternetAddr();
-    LocalAddr->SetAnyAddress();
+    
+    // Set IP address - if empty/not specified, bind to all addresses (any address)
+    if (IPAddress.IsEmpty())
+    {
+        LocalAddr->SetAnyAddress();
+        UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Binding to all addresses (any address)"));
+    }
+    else
+    {
+        bool bIsValid = false;
+        LocalAddr->SetIp(*IPAddress, bIsValid);
+        
+        if (!bIsValid)
+        {
+            UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Invalid IP address: %s"), *IPAddress);
+            CleanupSocket();
+            return false;
+        }
+        UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Binding to specific IP: %s"), *IPAddress);
+    }
+    
     LocalAddr->SetPort(ListenPort);
 
     // Bind socket to address
     if (!ListenSocket->Bind(*LocalAddr))
     {
-        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Failed to bind UDP socket to port %d"), ListenPort);
+        FString BindInfo = IPAddress.IsEmpty() ? TEXT("any address") : IPAddress;
+        UE_LOG(LogTemp, Error, TEXT("UDPReceiver: Failed to bind UDP socket to %s:%d"), *BindInfo, ListenPort);
         CleanupSocket();
         return false;
     }
@@ -69,7 +90,8 @@ bool UUDPReceiver::StartListening(int32 Port)
     // Start receiver thread
     ReceiverThread = FRunnableThread::Create(this, TEXT("UDPReceiverThread"), 0, TPri_Normal);
     
-    UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Started listening on port %d"), ListenPort);
+    FString BindInfo = IPAddress.IsEmpty() ? TEXT("any address") : IPAddress;
+    UE_LOG(LogTemp, Warning, TEXT("UDPReceiver: Started listening on %s:%d"), *BindInfo, ListenPort);
     return true;
 }
 
