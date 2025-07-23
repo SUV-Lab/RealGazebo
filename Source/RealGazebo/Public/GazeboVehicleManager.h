@@ -4,8 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "GazeboPoseDataReceiver.h"
-#include "GazeboRPMDataReceiver.h"
+#include "GazeboUnifiedDataReceiver.h"
 #include "GazeboVehicleActor.h"
 #include "GazeboVehicleManager.generated.h"
 
@@ -24,24 +23,20 @@ protected:
 public:
     virtual void Tick(float DeltaTime) override;
 
-    // Components
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
-    UGazeboPoseDataReceiver* PoseDataReceiver;
+    // Components ----
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
-    UGazeboRPMDataReceiver* RPMDataReceiver;
+    // GazeboUnifiedDataReceiver 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
+    UGazeboUnifiedDataReceiver* UnifiedDataReceiver;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
-    UGazeboServoDataReceiver* ServoDataReceiver;
-
-    // Configuration
+    // Configuration  -----
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration")
     class UDataTable* VehicleDataTable;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Spawning Settings")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration|Spawning Settings")
     bool bAutoSpawnVehicles = true;
 
-    // Control functions
+    // Control functions ----
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Manager")
     void ClearAllVehicles();
 
@@ -72,7 +67,7 @@ private:
     void OnVehiclePoseDataReceived(const FGazeboPoseData& VehicleData);
 
     UFUNCTION()
-    void OnVehicleRPMDataReceived(const FGazeboRPMData& RPMData);
+    void OnVehicleMotorSpeedDataReceived(const FGazeboMotorSpeedData& MotorSpeedData);
 
     UFUNCTION()
     void OnVehicleServoDataReceived(const FGazeboServoData& ServoData);

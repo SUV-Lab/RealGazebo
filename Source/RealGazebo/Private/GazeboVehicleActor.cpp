@@ -168,18 +168,17 @@ void AGazeboVehicleActor::SmoothMoveServosToTarget(float DeltaTime)
     }
 }
 
-void AGazeboVehicleActor::UpdateVehicleRPM(const FGazeboRPMData& RPMData)
+void AGazeboVehicleActor::UpdateVehicleMotorSpeed(const FGazeboMotorSpeedData& MotorSpeedData)
 {
-    // Update rotating components with RPM data
-    for (int32 i = 0; i < RotatingComponents.Num() && i < RPMData.MotorRPMs.Num(); i++)
+    // Update rotating components with motor speed data (already in deg/s)
+    for (int32 i = 0; i < RotatingComponents.Num() && i < MotorSpeedData.MotorSpeeds_DegPerSec.Num(); i++)
     {
         if (RotatingComponents[i] && IsValid(RotatingComponents[i]))
         {
-            float radianspersecond = RPMData.MotorRPMs[i]; //Gazebo: rad/s (angular velocity) , motor_joint_[i]->GetVelocity(0) returns angular velocity in rad/s (radians per second)
-            float DegreesPerSecond = ConvertRadiansToDegrees(radianspersecond); //Unreal RotationRate: degrees/s for each axis , RotatingMovementComponent->RotationRate expects degrees/second
+            float DegreesPerSecond = MotorSpeedData.MotorSpeeds_DegPerSec[i]; // Already converted to deg/s in UnifiedDataReceiver
             
             // Update rotation rate (ensure Z-axis rotation)
-            FRotator NewRotationRate = FRotator(0.0f, DegreesPerSecond, 0.0f); // Z-axis spin  →  assign to Yaw
+            FRotator NewRotationRate = FRotator(0.0f, DegreesPerSecond, 0.0f); // Z-axis spin → assign to Yaw
             RotatingComponents[i]->RotationRate = NewRotationRate;
         }
     }
@@ -209,8 +208,8 @@ void AGazeboVehicleActor::UpdateVehicleServo(const FGazeboServoData& ServoData)
     }
 }
 
-float AGazeboVehicleActor::ConvertRadiansToDegrees(float Radians) const
+float AGazeboVehicleActor::ConvertRadiansPerSecToDegPerSec(float RadiansPerSec) const
 {
     // Gazebo → Unreal Conversion: degrees/s = rad/s × (180/π)
-    return Radians * (180.0f / PI);
+    return RadiansPerSec * (180.0f / PI);
 }
