@@ -49,7 +49,7 @@ public:
 
     // Core UDP functions
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|UDP Receiver")
-    bool StartListening(int32 Port);
+    bool StartListening(int32 Port, const FString& IPAddress = TEXT("127.0.0.1"));
 
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|UDP Receiver")
     void StopListening();

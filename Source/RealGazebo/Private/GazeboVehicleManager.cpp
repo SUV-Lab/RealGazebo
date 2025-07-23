@@ -19,6 +19,7 @@ void AGazeboVehicleManager::BeginPlay()
 {
     Super::BeginPlay();
 
+    // Bind events to unified receiver (all properties are set directly on component)
     if (UnifiedDataReceiver)
     {
         UnifiedDataReceiver->OnVehiclePoseReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehiclePoseDataReceived);

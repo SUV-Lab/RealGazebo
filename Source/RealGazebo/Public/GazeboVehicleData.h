@@ -87,7 +87,7 @@ struct FGazeboServoData
     {
         VehicleNum = 0;
         VehicleType = 0;
-        MessageID = 3; // Servo data message ID.
+        MessageID = 3; // Servo data message ID
         ServoPositions.Empty();
         ServoRotations.Empty();
     }

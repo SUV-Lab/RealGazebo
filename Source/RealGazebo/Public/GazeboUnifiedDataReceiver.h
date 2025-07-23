@@ -55,7 +55,6 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "RealGazebo|Unified Data Receiver")
     FOnGazeboServoDataReceived OnVehicleServoReceived;
-
     // Statistics
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Unified Data Receiver")
     int32 ValidPosePacketsReceived;
@@ -74,7 +73,6 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Unified Data Receiver")
     int32 InvalidServoPacketsReceived;
-
 protected:
     UPROPERTY()
     UUDPReceiver* UDPReceiver;

@@ -65,7 +65,7 @@ bool UGazeboUnifiedDataReceiver::StartUnifiedDataReceiver()
         return false;
     }
 
-    bool bSuccess = UDPReceiver->StartListening(ListenPort);
+    bool bSuccess = UDPReceiver->StartListening(ListenPort, ServerIPAddress);
     UE_LOG(LogTemp, Warning, TEXT("GazeboUnifiedDataReceiver: Start receiver on %s:%d - %s"), 
            *ServerIPAddress, ListenPort, bSuccess ? TEXT("SUCCESS") : TEXT("FAILED"));
     return bSuccess;
@@ -386,7 +386,6 @@ int32 UGazeboUnifiedDataReceiver::GetServoCount(uint8 VehicleType) const
     FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfo(VehicleType);
     return VehicleInfo ? VehicleInfo->ServoCount : 0;
 }
-
 FGazeboVehicleTableRow* UGazeboUnifiedDataReceiver::GetVehicleInfo(uint8 VehicleType) const
 {
     // Get VehicleDataTable from the owner (GazeboVehicleManager)

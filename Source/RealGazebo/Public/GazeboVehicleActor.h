@@ -51,7 +51,6 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle")
     void UpdateVehicleMotorSpeed(const FGazeboMotorSpeedData& MotorSpeedData);
-
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle")
     void UpdateVehicleServo(const FGazeboServoData& ServoData);
 

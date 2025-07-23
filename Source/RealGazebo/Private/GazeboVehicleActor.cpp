@@ -177,7 +177,7 @@ void AGazeboVehicleActor::UpdateVehicleMotorSpeed(const FGazeboMotorSpeedData& M
         {
             float DegreesPerSecond = MotorSpeedData.MotorSpeeds_DegPerSec[i]; // Already converted to deg/s in UnifiedDataReceiver
             
-            // Update rotation rate (ensure Z-axis rotation)
+            // Update rotation rate (ensure Z-axis rotation for propeller spin)
             FRotator NewRotationRate = FRotator(0.0f, DegreesPerSecond, 0.0f); // Z-axis spin → assign to Yaw
             RotatingComponents[i]->RotationRate = NewRotationRate;
         }
@@ -210,6 +210,6 @@ void AGazeboVehicleActor::UpdateVehicleServo(const FGazeboServoData& ServoData)
 
 float AGazeboVehicleActor::ConvertRadiansPerSecToDegPerSec(float RadiansPerSec) const
 {
-    // Gazebo → Unreal Conversion: degrees/s = rad/s × (180/π)
+    // Gazebo → Unreal Conversion: deg/s = rad/s × (180/π)
     return RadiansPerSec * (180.0f / PI);
 }
