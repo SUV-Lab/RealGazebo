@@ -69,6 +69,9 @@ private:
     UFUNCTION()
     void OnVehicleMotorSpeedDataReceived(const FGazeboMotorSpeedData& MotorSpeedData);
 
+    UFUNCTION()
+    void OnVehicleServoDataReceived(const FGazeboServoData& ServoData);
+
     // Vehicle management
     AGazeboVehicleActor* SpawnVehicle(const FGazeboPoseData& VehicleData);
     FString GetVehicleKey(const FGazeboPoseData& VehicleData) const;

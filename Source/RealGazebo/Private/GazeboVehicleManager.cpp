@@ -24,6 +24,7 @@ void AGazeboVehicleManager::BeginPlay()
     {
         UnifiedDataReceiver->OnVehiclePoseReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehiclePoseDataReceived);
         UnifiedDataReceiver->OnVehicleMotorSpeedReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehicleMotorSpeedDataReceived);
+        UnifiedDataReceiver->OnVehicleServoReceived.AddDynamic(this, &AGazeboVehicleManager::OnVehicleServoDataReceived);
     }
 
     UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleManager: Started - Auto spawn: %s"), 
@@ -36,6 +37,7 @@ void AGazeboVehicleManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
     {
         UnifiedDataReceiver->OnVehiclePoseReceived.RemoveAll(this);
         UnifiedDataReceiver->OnVehicleMotorSpeedReceived.RemoveAll(this);
+        UnifiedDataReceiver->OnVehicleServoReceived.RemoveAll(this);
     }
 
     ClearAllVehicles();
@@ -50,8 +52,11 @@ void AGazeboVehicleManager::Tick(float DeltaTime)
     if (GEngine && UnifiedDataReceiver && UnifiedDataReceiver->bLogParsedData)
     {
         GEngine->AddOnScreenDebugMessage(1, 1.1f, FColor::Green,
-            FString::Printf(TEXT("Gazebo Manager: %d vehicles | %d pose | %d motor speed packets"),
-                          GetActiveVehicleCount(), UnifiedDataReceiver->ValidPosePacketsReceived, UnifiedDataReceiver->ValidMotorSpeedPacketsReceived));
+            FString::Printf(TEXT("Gazebo Manager: %d vehicles | P:%d M:%d S:%d packets"),
+                          GetActiveVehicleCount(), 
+                          UnifiedDataReceiver->ValidPosePacketsReceived,
+                          UnifiedDataReceiver->ValidMotorSpeedPacketsReceived,
+                          UnifiedDataReceiver->ValidServoPacketsReceived));
     }
 }
 
@@ -159,6 +164,20 @@ void AGazeboVehicleManager::OnVehicleMotorSpeedDataReceived(const FGazeboMotorSp
     if (Vehicle && IsValid(Vehicle))
     {
         Vehicle->UpdateVehicleMotorSpeed(MotorSpeedData);
+    }
+}
+
+void AGazeboVehicleManager::OnVehicleServoDataReceived(const FGazeboServoData& ServoData)
+{
+    FString VehicleKey = GetVehicleKey(ServoData.VehicleNum, ServoData.VehicleType);
+    
+    // Find existing vehicle
+    AGazeboVehicleActor* Vehicle = SpawnedVehicles.FindRef(VehicleKey);
+    
+    // Update vehicle servo if it exists
+    if (Vehicle && IsValid(Vehicle))
+    {
+        Vehicle->UpdateVehicleServo(ServoData);
     }
 }
 

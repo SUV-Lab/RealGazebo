@@ -53,6 +53,8 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "RealGazebo|Unified Data Receiver")
     FOnGazeboMotorSpeedDataReceived OnVehicleMotorSpeedReceived;
 
+    UPROPERTY(BlueprintAssignable, Category = "RealGazebo|Unified Data Receiver")
+    FOnGazeboServoDataReceived OnVehicleServoReceived;
     // Statistics
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Unified Data Receiver")
     int32 ValidPosePacketsReceived;
@@ -66,6 +68,11 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Unified Data Receiver")
     int32 InvalidMotorSpeedPacketsReceived;
 
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Unified Data Receiver")
+    int32 ValidServoPacketsReceived;
+
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Unified Data Receiver")
+    int32 InvalidServoPacketsReceived;
 protected:
     UPROPERTY()
     UUDPReceiver* UDPReceiver;
@@ -80,12 +87,15 @@ private:
     // Data parsing
     bool ParsePoseData(const TArray<uint8>& RawData, FGazeboPoseData& OutPoseData);
     bool ParseMotorSpeedData(const TArray<uint8>& RawData, FGazeboMotorSpeedData& OutMotorSpeedData);
+    bool ParseServoData(const TArray<uint8>& RawData, FGazeboServoData& OutServoData);
     float BytesToFloat(const TArray<uint8>& Data, int32 StartIndex);
     FVector ConvertGazeboPositionToUnreal(float X, float Y, float Z);
     FRotator ConvertGazeboRotationToUnreal(float Roll, float Pitch, float Yaw);
     
-    // Motor speed helper functions
+    // Helper functions
     int32 GetExpectedMotorSpeedPacketSize(uint8 VehicleType) const;
+    int32 GetExpectedServoPacketSize(uint8 VehicleType) const;
     int32 GetMotorCount(uint8 VehicleType) const;
+    int32 GetServoCount(uint8 VehicleType) const;
     FGazeboVehicleTableRow* GetVehicleInfo(uint8 VehicleType) const;
 };

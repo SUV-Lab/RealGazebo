@@ -14,6 +14,8 @@ UGazeboUnifiedDataReceiver::UGazeboUnifiedDataReceiver()
     InvalidPosePacketsReceived = 0;
     ValidMotorSpeedPacketsReceived = 0;
     InvalidMotorSpeedPacketsReceived = 0;
+    ValidServoPacketsReceived = 0;
+    InvalidServoPacketsReceived = 0;
 }
 
 void UGazeboUnifiedDataReceiver::BeginPlay()
@@ -154,6 +156,37 @@ void UGazeboUnifiedDataReceiver::OnUDPDataReceived(const FUDPData& ReceivedData)
             InvalidMotorSpeedPacketsReceived++;
         }
     }
+    else if (MessageID == 3) // Servo data
+    {
+        FGazeboServoData ServoData;
+        if (ParseServoData(ReceivedData.Data, ServoData))
+        {
+            ValidServoPacketsReceived++;
+            
+            if (bLogParsedData)
+            {
+                FString ServoStr;
+                for (int32 i = 0; i < ServoData.ServoRotations.Num(); i++)
+                {
+                    ServoStr += FString::Printf(TEXT("S%d:[P:%.2f,%.2f,%.2f R:%.1f,%.1f,%.1f] "),
+                        i, ServoData.ServoPositions[i].X, ServoData.ServoPositions[i].Y, ServoData.ServoPositions[i].Z,
+                        ServoData.ServoRotations[i].Roll, ServoData.ServoRotations[i].Pitch, ServoData.ServoRotations[i].Yaw);
+                }
+                
+                FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfo(ServoData.VehicleType);
+                FString VehicleName = VehicleInfo ? VehicleInfo->VehicleName : TEXT("Unknown");
+                
+                UE_LOG(LogTemp, Log, TEXT("GazeboUnifiedDataReceiver: %s_%d - %s"),
+                       *VehicleName, ServoData.VehicleNum, *ServoStr);
+            }
+
+            OnVehicleServoReceived.Broadcast(ServoData);
+        }
+        else
+        {
+            InvalidServoPacketsReceived++;
+        }
+    }
     else
     {
         UE_LOG(LogTemp, Warning, TEXT("GazeboUnifiedDataReceiver: Unknown message ID: %d"), MessageID);
@@ -235,6 +268,63 @@ bool UGazeboUnifiedDataReceiver::ParseMotorSpeedData(const TArray<uint8>& RawDat
     return true;
 }
 
+bool UGazeboUnifiedDataReceiver::ParseServoData(const TArray<uint8>& RawData, FGazeboServoData& OutServoData)
+{
+    if (RawData.Num() < 3)
+    {
+        return false;
+    }
+
+    // Parse header
+    OutServoData.VehicleNum = RawData[0];
+    OutServoData.VehicleType = RawData[1];
+    OutServoData.MessageID = RawData[2];
+
+    // Validate message ID for servo data
+    if (OutServoData.MessageID != 3)
+    {
+        return false;
+    }
+
+    // Validate packet size
+    int32 ExpectedSize = GetExpectedServoPacketSize(OutServoData.VehicleType);
+    if (ExpectedSize == 0 || RawData.Num() != ExpectedSize)
+    {
+        return false;
+    }
+
+    // Parse servo positions and rotations
+    int32 ServoCount = GetServoCount(OutServoData.VehicleType);
+    OutServoData.ServoPositions.Empty();
+    OutServoData.ServoPositions.Reserve(ServoCount);
+    OutServoData.ServoRotations.Empty();
+    OutServoData.ServoRotations.Reserve(ServoCount);
+
+    for (int32 i = 0; i < ServoCount; i++)
+    {
+        int32 StartIndex = 3 + (i * 24); // 3-byte header + 24 bytes per servo (6 floats)
+        
+        if (StartIndex + 23 >= RawData.Num())
+        {
+            return false;
+        }
+
+        // Parse position (X, Y, Z)
+        float X = BytesToFloat(RawData, StartIndex);
+        float Y = BytesToFloat(RawData, StartIndex + 4);
+        float Z = BytesToFloat(RawData, StartIndex + 8);
+        OutServoData.ServoPositions.Add(ConvertGazeboPositionToUnreal(X, Y, Z));
+
+        // Parse rotation (Roll, Pitch, Yaw)
+        float Roll = BytesToFloat(RawData, StartIndex + 12);
+        float Pitch = BytesToFloat(RawData, StartIndex + 16);
+        float Yaw = BytesToFloat(RawData, StartIndex + 20);
+        OutServoData.ServoRotations.Add(ConvertGazeboRotationToUnreal(Roll, Pitch, Yaw));
+    }
+
+    return true;
+}
+
 float UGazeboUnifiedDataReceiver::BytesToFloat(const TArray<uint8>& Data, int32 StartIndex)
 {
     if (StartIndex + 3 >= Data.Num())
@@ -285,6 +375,17 @@ int32 UGazeboUnifiedDataReceiver::GetMotorCount(uint8 VehicleType) const
     return VehicleInfo ? VehicleInfo->MotorCount : 0;
 }
 
+int32 UGazeboUnifiedDataReceiver::GetExpectedServoPacketSize(uint8 VehicleType) const
+{
+    FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfo(VehicleType);
+    return VehicleInfo ? VehicleInfo->GetServoPacketSize() : 0;
+}
+
+int32 UGazeboUnifiedDataReceiver::GetServoCount(uint8 VehicleType) const
+{
+    FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfo(VehicleType);
+    return VehicleInfo ? VehicleInfo->ServoCount : 0;
+}
 FGazeboVehicleTableRow* UGazeboUnifiedDataReceiver::GetVehicleInfo(uint8 VehicleType) const
 {
     // Get VehicleDataTable from the owner (GazeboVehicleManager)
