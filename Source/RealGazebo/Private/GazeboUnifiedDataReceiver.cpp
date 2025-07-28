@@ -218,11 +218,13 @@ bool UGazeboUnifiedDataReceiver::ParsePoseData(const TArray<uint8>& RawData, FGa
     float Z = BytesToFloat(RawData, 11);
     OutPoseData.Position = ConvertGazeboPositionToUnreal(X, Y, Z);
 
-    // Parse rotation (bytes 15-26)
-    float Roll = BytesToFloat(RawData, 15);
-    float Pitch = BytesToFloat(RawData, 19);
-    float Yaw = BytesToFloat(RawData, 23);
-    OutPoseData.Rotation = ConvertGazeboRotationToUnreal(Roll, Pitch, Yaw);
+    // Parse quaternion (bytes 15-30)
+    float QuatX = BytesToFloat(RawData, 15);
+    float QuatY = BytesToFloat(RawData, 19);
+    float QuatZ = BytesToFloat(RawData, 23);
+    float QuatW = BytesToFloat(RawData, 27);
+    FQuat PoseQuat = ConvertGazeboQuaternionToUnreal(QuatX, QuatY, QuatZ, QuatW);
+    OutPoseData.Rotation = PoseQuat.Rotator();
 
     return true;
 }
@@ -302,9 +304,9 @@ bool UGazeboUnifiedDataReceiver::ParseServoData(const TArray<uint8>& RawData, FG
 
     for (int32 i = 0; i < ServoCount; i++)
     {
-        int32 StartIndex = 3 + (i * 24); // 3-byte header + 24 bytes per servo (6 floats)
+        int32 StartIndex = 3 + (i * 28); // 3-byte header + 28 bytes per servo (position 3 floats + quaternion 4 floats)
         
-        if (StartIndex + 23 >= RawData.Num())
+        if (StartIndex + 27 >= RawData.Num())
         {
             return false;
         }
@@ -315,11 +317,13 @@ bool UGazeboUnifiedDataReceiver::ParseServoData(const TArray<uint8>& RawData, FG
         float Z = BytesToFloat(RawData, StartIndex + 8);
         OutServoData.ServoPositions.Add(ConvertGazeboPositionToUnreal(X, Y, Z));
 
-        // Parse rotation (Roll, Pitch, Yaw)
-        float Roll = BytesToFloat(RawData, StartIndex + 12);
-        float Pitch = BytesToFloat(RawData, StartIndex + 16);
-        float Yaw = BytesToFloat(RawData, StartIndex + 20);
-        OutServoData.ServoRotations.Add(ConvertGazeboRotationToUnreal(Roll, Pitch, Yaw));
+        // Parse quaternion (X, Y, Z, W)
+        float QuatX = BytesToFloat(RawData, StartIndex + 12);
+        float QuatY = BytesToFloat(RawData, StartIndex + 16);
+        float QuatZ = BytesToFloat(RawData, StartIndex + 20);
+        float QuatW = BytesToFloat(RawData, StartIndex + 24);
+        FQuat ServoQuat = ConvertGazeboQuaternionToUnreal(QuatX, QuatY, QuatZ, QuatW);
+        OutServoData.ServoRotations.Add(ServoQuat.Rotator());
     }
 
     return true;
@@ -361,6 +365,15 @@ FRotator UGazeboUnifiedDataReceiver::ConvertGazeboRotationToUnreal(float Roll, f
     return FRotator(-FMath::RadiansToDegrees(Pitch), 
                     -FMath::RadiansToDegrees(Yaw), 
                     FMath::RadiansToDegrees(Roll));
+}
+
+FQuat UGazeboUnifiedDataReceiver::ConvertGazeboQuaternionToUnreal(float X, float Y, float Z, float W)
+{
+    // Simple Y-axis flip to convert from Gazebo's right-handed to Unreal's left-handed coordinate system
+    // Gazebo: Right-handed (X-forward, Y-left, Z-up)
+    // Unreal: Left-handed (X-forward, Y-right, Z-up)
+    // This avoids gimbal lock issues while maintaining quaternion benefits
+    return FQuat(X, -Y, Z, -W);
 }
 
 int32 UGazeboUnifiedDataReceiver::GetExpectedMotorSpeedPacketSize(uint8 VehicleType) const

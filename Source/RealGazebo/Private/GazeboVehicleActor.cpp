@@ -23,7 +23,7 @@ AGazeboVehicleActor::AGazeboVehicleActor()
     LastUpdateTime = 0.0f;
     LastServoUpdateTime = 0.0f;
     TargetPosition = FVector::ZeroVector;
-    TargetRotation = FRotator::ZeroRotator;
+    TargetQuaternion = FQuat::Identity;
 }
 
 void AGazeboVehicleActor::BeginPlay()
@@ -58,7 +58,7 @@ void AGazeboVehicleActor::UpdateVehiclePose(const FGazeboPoseData& PoseData)
     if (bSmoothMovement)
     {
         TargetPosition = PoseData.Position;
-        TargetRotation = PoseData.Rotation;
+        TargetQuaternion = PoseData.Rotation.Quaternion();
         bHasTarget = true;
     }
     else
@@ -80,7 +80,7 @@ void AGazeboVehicleActor::SetupVehicleMesh()
 void AGazeboVehicleActor::SmoothMoveToTarget(float DeltaTime)
 {
     FVector CurrentLocation = GetActorLocation();
-    FRotator CurrentRotation = GetActorRotation();
+    FQuat CurrentQuaternion = GetActorRotation().Quaternion();
 
     // Calculate interpolation speed based on distance
     float DistanceToTarget = FVector::Dist(CurrentLocation, TargetPosition);
@@ -100,27 +100,28 @@ void AGazeboVehicleActor::SmoothMoveToTarget(float DeltaTime)
     FVector NewLocation = FMath::VInterpTo(CurrentLocation, TargetPosition, DeltaTime, DynamicSpeed);
     SetActorLocation(NewLocation);
 
-    // Interpolate rotation
-    FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, DynamicSpeed);
-    SetActorRotation(NewRotation);
+    // Interpolate rotation using quaternion SLERP (avoids gimbal lock)
+    FQuat NewQuaternion = FQuat::Slerp(CurrentQuaternion, TargetQuaternion, FMath::Clamp(DeltaTime * DynamicSpeed, 0.0f, 1.0f));
+    SetActorRotation(NewQuaternion.Rotator());
 
     // Check if we're close enough to target
     float FinalDistance = FVector::Dist(NewLocation, TargetPosition);
-    float RotationDiff = FMath::Abs(FRotator::ClampAxis(NewRotation.Yaw - TargetRotation.Yaw));
+    float QuaternionDot = FMath::Abs(NewQuaternion | TargetQuaternion);
+    float RotationDiff = FMath::Acos(FMath::Clamp(QuaternionDot, 0.0f, 1.0f)) * 2.0f; // Angular difference in radians
     
-    if (FinalDistance < 5.0f && RotationDiff < 2.0f) // 5cm position, 2 degree rotation tolerance
+    if (FinalDistance < 5.0f && RotationDiff < FMath::DegreesToRadians(2.0f)) // 5cm position, 2 degree rotation tolerance
     {
         bHasTarget = false;
         // Snap to final position for precision
         SetActorLocation(TargetPosition);
-        SetActorRotation(TargetRotation);
+        SetActorRotation(TargetQuaternion.Rotator());
     }
 }
 
 void AGazeboVehicleActor::SmoothMoveServosToTarget(float DeltaTime)
 {
     bool bAllServosAtTarget = true;
-    int32 NumServosToUpdate = FMath::Min3(ControllableComponents.Num(), TargetServoPositions.Num(), TargetServoRotations.Num());
+    int32 NumServosToUpdate = FMath::Min3(ControllableComponents.Num(), TargetServoPositions.Num(), TargetServoQuaternions.Num());
 
     for (int32 i = 0; i < NumServosToUpdate; ++i)
     {
@@ -131,23 +132,23 @@ void AGazeboVehicleActor::SmoothMoveServosToTarget(float DeltaTime)
 
         USceneComponent* ServoComponent = ControllableComponents[i];
         const FVector& ServoTargetLocation = TargetServoPositions[i];
-        const FRotator& ServoTargetRotation = TargetServoRotations[i];
+        const FQuat& ServoTargetQuaternion = TargetServoQuaternions[i];
 
         // Interpolate Position
         FVector NewLocation = FMath::VInterpTo(ServoComponent->GetRelativeLocation(), ServoTargetLocation, DeltaTime, InterpolationSpeed);
         ServoComponent->SetRelativeLocation(NewLocation);
 
-        // Interpolate Rotation
-        FRotator NewRotation = FMath::RInterpTo(ServoComponent->GetRelativeRotation(), ServoTargetRotation, DeltaTime, InterpolationSpeed);
-        ServoComponent->SetRelativeRotation(NewRotation);
+        // Interpolate Rotation using quaternion SLERP (avoids gimbal lock)
+        FQuat CurrentQuat = ServoComponent->GetRelativeRotation().Quaternion();
+        FQuat NewQuat = FQuat::Slerp(CurrentQuat, ServoTargetQuaternion, FMath::Clamp(DeltaTime * InterpolationSpeed, 0.0f, 1.0f));
+        ServoComponent->SetRelativeRotation(NewQuat.Rotator());
 
         // Check if this servo is close enough to its target
         float LocationDistance = FVector::Dist(NewLocation, ServoTargetLocation);
-        float RotationDiff = FMath::Abs(FRotator::ClampAxis(NewRotation.Yaw - ServoTargetRotation.Yaw)) +
-                             FMath::Abs(FRotator::ClampAxis(NewRotation.Pitch - ServoTargetRotation.Pitch)) +
-                             FMath::Abs(FRotator::ClampAxis(NewRotation.Roll - ServoTargetRotation.Roll));
+        float QuaternionDot = FMath::Abs(NewQuat | ServoTargetQuaternion); // Use dot product operator
+        float RotationDiff = FMath::Acos(FMath::Clamp(QuaternionDot, 0.0f, 1.0f)) * 2.0f; // Angular difference in radians
 
-        if (LocationDistance > 2.0f || RotationDiff > 2.0f) // 2cm position, 2 degree rotation tolerance
+        if (LocationDistance > 2.0f || RotationDiff > FMath::DegreesToRadians(2.0f)) // 2cm position, 2 degree rotation tolerance
         {
             bAllServosAtTarget = false;
         }
@@ -162,7 +163,7 @@ void AGazeboVehicleActor::SmoothMoveServosToTarget(float DeltaTime)
             if (IsValid(ControllableComponents[i]))
             {
                 ControllableComponents[i]->SetRelativeLocation(TargetServoPositions[i]);
-                ControllableComponents[i]->SetRelativeRotation(TargetServoRotations[i]);
+                ControllableComponents[i]->SetRelativeRotation(TargetServoQuaternions[i].Rotator());
             }
         }
     }
@@ -191,7 +192,13 @@ void AGazeboVehicleActor::UpdateVehicleServo(const FGazeboServoData& ServoData)
     if (bSmoothMovement)
     {
         TargetServoPositions = ServoData.ServoPositions;
-        TargetServoRotations = ServoData.ServoRotations;
+        // Convert FRotator to FQuat for gimbal-lock-free interpolation
+        TargetServoQuaternions.Empty();
+        TargetServoQuaternions.Reserve(ServoData.ServoRotations.Num());
+        for (const FRotator& Rotation : ServoData.ServoRotations)
+        {
+            TargetServoQuaternions.Add(Rotation.Quaternion());
+        }
         bHasServoTarget = true;
     }
     else

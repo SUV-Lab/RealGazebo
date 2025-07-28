@@ -78,7 +78,7 @@ protected:
     UUDPReceiver* UDPReceiver;
 
 private:
-    static const int32 EXPECTED_POSE_PACKET_SIZE = 27; // 3 header + 6 float32 (24 bytes)
+    static const int32 EXPECTED_POSE_PACKET_SIZE = 31; // 3 header + 7 float32 (28 bytes) - pos(3) + quat(4)
 
     // Event handlers
     UFUNCTION()
@@ -91,6 +91,8 @@ private:
     float BytesToFloat(const TArray<uint8>& Data, int32 StartIndex);
     FVector ConvertGazeboPositionToUnreal(float X, float Y, float Z);
     FRotator ConvertGazeboRotationToUnreal(float Roll, float Pitch, float Yaw);
+    FQuat ConvertGazeboQuaternionToUnreal(float X, float Y, float Z, float W);
+    FQuat ConvertGazeboQuaternionToUnreal(float Roll, float Pitch, float Yaw);
     
     // Helper functions
     int32 GetExpectedMotorSpeedPacketSize(uint8 VehicleType) const;

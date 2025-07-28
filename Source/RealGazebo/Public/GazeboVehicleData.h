@@ -130,7 +130,7 @@ struct REALGAZEBO_API FGazeboVehicleTableRow : public FTableRowBase
     int32 GetServoPacketSize() const
     {
         // 3 header bytes + 24 bytes per servo (6 floats for XYZ + RPY * 4 bytes)
-        return 3 + (ServoCount * 24);
+        return 3 + (ServoCount * 28);
     }
 };
 

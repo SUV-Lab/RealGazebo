@@ -64,12 +64,12 @@ public:
 protected:
     // Smooth movement
     FVector TargetPosition;
-    FRotator TargetRotation;
+    FQuat TargetQuaternion;
     bool bHasTarget;
 
     // Target state for servo components
     TArray<FVector> TargetServoPositions;
-    TArray<FRotator> TargetServoRotations;
+    TArray<FQuat> TargetServoQuaternions;
     bool bHasServoTarget;
 
     virtual void SetupVehicleMesh();
