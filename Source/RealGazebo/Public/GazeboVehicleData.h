@@ -38,7 +38,7 @@ struct FGazeboPoseData
 };
 
 USTRUCT(BlueprintType)
-struct FGazeboRPMData
+struct FGazeboMotorSpeedData
 {
     GENERATED_BODY()
 
@@ -51,15 +51,15 @@ struct FGazeboRPMData
     UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Header")
     uint8 MessageID;
 
-    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|RPM Data")
-    TArray<float> MotorRPMs;
+    UPROPERTY(BlueprintReadOnly, Category = "RealGazebo|Motor Speed Data")
+    TArray<float> MotorSpeeds_DegPerSec;
 
-    FGazeboRPMData()
+    FGazeboMotorSpeedData()
     {
         VehicleNum = 0;
         VehicleType = 0;
-        MessageID = 2; // RPM data message ID
-        MotorRPMs.Empty();
+        MessageID = 2; // Motor speed data message ID
+        MotorSpeeds_DegPerSec.Empty();
     }
 };
 
@@ -88,11 +88,11 @@ struct REALGAZEBO_API FGazeboVehicleTableRow : public FTableRowBase
         VehicleActorClass = nullptr;
     }
 
-    int32 GetRPMPacketSize() const
+    int32 GetMotorSpeedPacketSize() const
     {
         return 3 + (MotorCount * 4); // 3 header bytes + 4 bytes per motor
     }
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGazeboVehicleDataReceived, const FGazeboPoseData&, VehicleData);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGazeboRPMDataReceived, const FGazeboRPMData&, RPMData);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGazeboMotorSpeedDataReceived, const FGazeboMotorSpeedData&, MotorSpeedData);

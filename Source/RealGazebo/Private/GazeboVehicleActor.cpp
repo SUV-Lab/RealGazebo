@@ -7,13 +7,28 @@ AGazeboVehicleActor::AGazeboVehicleActor()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // Create root component
-    RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
-    RootComponent = RootSceneComponent;
-
-    // Create mesh component
+    // Create vehicle mesh as root component
     VehicleMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VehicleMesh"));
-    VehicleMesh->SetupAttachment(RootComponent);
+    RootComponent = VehicleMesh;
+
+    // Create Viewer First Person Camera - attached to VehicleMesh
+    ViewerFirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ViewerFirstPersonCamera"));
+    ViewerFirstPersonCamera->SetupAttachment(VehicleMesh);
+    ViewerFirstPersonCamera->SetActive(false); // Start inactive
+
+    // Create Viewer Third Person Spring Arm - attached to VehicleMesh
+    ViewerThirdPersonSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("ViewerThirdPersonSpringArm"));
+    ViewerThirdPersonSpringArm->SetupAttachment(VehicleMesh);
+    ViewerThirdPersonSpringArm->bUsePawnControlRotation = false;
+    ViewerThirdPersonSpringArm->bInheritPitch = false;
+    ViewerThirdPersonSpringArm->bInheritYaw = false;
+    ViewerThirdPersonSpringArm->bInheritRoll = false;
+    ViewerThirdPersonSpringArm->bDoCollisionTest = false; // Disable collision for smooth camera
+
+    // Create Viewer Third Person Camera - attached to spring arm
+    ViewerThirdPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ViewerThirdPersonCamera"));
+    ViewerThirdPersonCamera->SetupAttachment(ViewerThirdPersonSpringArm, USpringArmComponent::SocketName);
+    ViewerThirdPersonCamera->SetActive(false); // Start inactive
 
     // Initialize variables
     VehicleNum = 0;
@@ -30,8 +45,8 @@ void AGazeboVehicleActor::BeginPlay()
     
     SetupVehicleMesh();
     
-    UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleActor: Vehicle_%d (Type: %d) spawned"), 
-           VehicleNum, VehicleType);
+    UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleActor: %s (Type: %d) spawned with viewer cameras"), 
+           *GetActorLabel(), VehicleType);
 }
 
 void AGazeboVehicleActor::Tick(float DeltaTime)
@@ -110,25 +125,61 @@ void AGazeboVehicleActor::SmoothMoveToTarget(float DeltaTime)
     }
 }
 
-void AGazeboVehicleActor::UpdateVehicleRPM(const FGazeboRPMData& RPMData)
+void AGazeboVehicleActor::UpdateVehicleMotorSpeed(const FGazeboMotorSpeedData& MotorSpeedData)
 {
-    // Update rotating components with RPM data
-    for (int32 i = 0; i < RotatingComponents.Num() && i < RPMData.MotorRPMs.Num(); i++)
+    // Update rotating components with motor speed data
+    for (int32 i = 0; i < RotatingComponents.Num() && i < MotorSpeedData.MotorSpeeds_DegPerSec.Num(); i++)
     {
         if (RotatingComponents[i] && IsValid(RotatingComponents[i]))
         {
-            float radianspersecond = RPMData.MotorRPMs[i]; //Gazebo: rad/s (angular velocity) , motor_joint_[i]->GetVelocity(0) returns angular velocity in rad/s (radians per second)
-            float DegreesPerSecond = ConvertRadiansToDegrees(radianspersecond); //Unreal RotationRate: degrees/s for each axis , RotatingMovementComponent->RotationRate expects degrees/second
+            float DegreesPerSecond = MotorSpeedData.MotorSpeeds_DegPerSec[i];
             
-            // Update rotation rate (ensure Z-axis rotation)
-            FRotator NewRotationRate = FRotator(0.0f, DegreesPerSecond, 0.0f); // Z-axis spin  →  assign to Yaw
+            // Update rotation rate (ensure Z-axis rotation for propeller spin)
+            FRotator NewRotationRate = FRotator(0.0f, DegreesPerSecond, 0.0f); // Z-axis spin → assign to Yaw
             RotatingComponents[i]->RotationRate = NewRotationRate;
         }
     }
 }
 
-float AGazeboVehicleActor::ConvertRadiansToDegrees(float Radians) const
+void AGazeboVehicleActor::SetViewerFirstPersonCameraActive(bool bActive)
 {
-    // Gazebo → Unreal Conversion: degrees/s = rad/s × (180/π)
-    return Radians * (180.0f / PI);
+    if (ViewerFirstPersonCamera)
+    {
+        ViewerFirstPersonCamera->SetActive(bActive);
+        UE_LOG(LogTemp, Log, TEXT("%s: Viewer first person camera %s"), 
+               *GetActorLabel(), bActive ? TEXT("ACTIVATED") : TEXT("DEACTIVATED"));
+    }
+}
+
+void AGazeboVehicleActor::SetViewerThirdPersonCameraActive(bool bActive)
+{
+    if (ViewerThirdPersonCamera)
+    {
+        ViewerThirdPersonCamera->SetActive(bActive);
+        UE_LOG(LogTemp, Log, TEXT("%s: Viewer third person camera %s"), 
+               *GetActorLabel(), bActive ? TEXT("ACTIVATED") : TEXT("DEACTIVATED"));
+    }
+}
+
+void AGazeboVehicleActor::DeactivateAllViewerCameras()
+{
+    if (ViewerFirstPersonCamera)
+    {
+        ViewerFirstPersonCamera->SetActive(false);
+    }
+    if (ViewerThirdPersonCamera)
+    {
+        ViewerThirdPersonCamera->SetActive(false);
+    }
+    UE_LOG(LogTemp, Log, TEXT("%s: All viewer cameras deactivated"), *GetActorLabel());
+}
+
+bool AGazeboVehicleActor::IsViewerFirstPersonCameraActive() const
+{
+    return ViewerFirstPersonCamera ? ViewerFirstPersonCamera->IsActive() : false;
+}
+
+bool AGazeboVehicleActor::IsViewerThirdPersonCameraActive() const
+{
+    return ViewerThirdPersonCamera ? ViewerThirdPersonCamera->IsActive() : false;
 }

@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "GazeboPoseDataReceiver.h"
-#include "GazeboRPMDataReceiver.h"
+#include "GazeboUnifiedDataReceiver.h"
 #include "GazeboVehicleActor.h"
+#include "UserCameraManager.h" 
 #include "GazeboVehicleManager.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVehicleSpawned, AGazeboVehicleActor*, Vehicle);
 
 UCLASS()
 class REALGAZEBO_API AGazeboVehicleManager : public AActor
@@ -24,21 +26,24 @@ protected:
 public:
     virtual void Tick(float DeltaTime) override;
 
-    // Components
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
-    UGazeboPoseDataReceiver* PoseDataReceiver;
+    // Components ----
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components", meta = (ShowOnlyInnerProperties))
-    UGazeboRPMDataReceiver* RPMDataReceiver;
+    // GazeboUnifiedDataReceiver 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
+    UGazeboUnifiedDataReceiver* UnifiedDataReceiver;
 
-    // Configuration
+    // Camera Manager - updated type
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
+    UUserCameraManager* CameraManager;
+
+    // Configuration  -----
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration")
     class UDataTable* VehicleDataTable;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Spawning Settings")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration|Spawning Settings")
     bool bAutoSpawnVehicles = true;
 
-    // Control functions
+    // Control functions ----
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Manager")
     void ClearAllVehicles();
 
@@ -69,7 +74,7 @@ private:
     void OnVehiclePoseDataReceived(const FGazeboPoseData& VehicleData);
 
     UFUNCTION()
-    void OnVehicleRPMDataReceived(const FGazeboRPMData& RPMData);
+    void OnVehicleMotorSpeedDataReceived(const FGazeboMotorSpeedData& MotorSpeedData);
 
     // Vehicle management
     AGazeboVehicleActor* SpawnVehicle(const FGazeboPoseData& VehicleData);
@@ -80,4 +85,8 @@ private:
 
     // Helper function for internal use (returns pointer)
     FGazeboVehicleTableRow* GetVehicleInfoInternal(uint8 VehicleType) const;
+
+    // Events
+    UPROPERTY(BlueprintAssignable, Category = "RealGazebo|Vehicle Manager")
+    FOnVehicleSpawned OnVehicleSpawned;
 };

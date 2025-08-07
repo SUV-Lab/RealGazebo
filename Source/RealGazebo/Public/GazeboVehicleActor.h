@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/RotatingMovementComponent.h"
 #include "GazeboVehicleData.h"
 #include "GazeboVehicleActor.generated.h"
@@ -30,12 +32,19 @@ public:
     UPROPERTY(BlueprintReadWrite, Category = "RealGazebo|Vehicle Info")
     uint8 VehicleType;
 
-    // Components
+    // Components - Vehicle Mesh as Root
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
     UStaticMeshComponent* VehicleMesh;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
-    USceneComponent* RootSceneComponent;
+    // Vehicle Camera Components - renamed with "Viewer" prefix
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Viewer Cameras")
+    UCameraComponent* ViewerFirstPersonCamera;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Viewer Cameras")
+    USpringArmComponent* ViewerThirdPersonSpringArm;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Viewer Cameras")
+    UCameraComponent* ViewerThirdPersonCamera;
 
     // Rotating components for motors/propellers/wheels
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Rotating Components")
@@ -46,7 +55,23 @@ public:
     void UpdateVehiclePose(const FGazeboPoseData& PoseData);
 
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle")
-    void UpdateVehicleRPM(const FGazeboRPMData& RPMData);
+    void UpdateVehicleMotorSpeed(const FGazeboMotorSpeedData& MotorSpeedData);
+
+    // Camera control functions - updated names
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Viewer Cameras")
+    void SetViewerFirstPersonCameraActive(bool bActive);
+
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Viewer Cameras")
+    void SetViewerThirdPersonCameraActive(bool bActive);
+
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Viewer Cameras")
+    void DeactivateAllViewerCameras();
+
+    UFUNCTION(BlueprintPure, Category = "RealGazebo|Viewer Cameras")
+    bool IsViewerFirstPersonCameraActive() const;
+
+    UFUNCTION(BlueprintPure, Category = "RealGazebo|Viewer Cameras")
+    bool IsViewerThirdPersonCameraActive() const;
 
     // Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Settings")
@@ -68,6 +93,19 @@ private:
     // Last update time for debugging
     float LastUpdateTime;
 
-    // Helper functions for RPM conversion
-    float ConvertRadiansToDegrees(float Radians) const;
+    // Backward compatibility functions (deprecated)
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Cameras", meta = (DeprecatedFunction, DeprecationMessage = "Use SetViewerFirstPersonCameraActive instead"))
+    void SetFirstPersonCameraActive(bool bActive) { SetViewerFirstPersonCameraActive(bActive); }
+
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Cameras", meta = (DeprecatedFunction, DeprecationMessage = "Use SetViewerThirdPersonCameraActive instead"))
+    void SetThirdPersonCameraActive(bool bActive) { SetViewerThirdPersonCameraActive(bActive); }
+
+    UFUNCTION(BlueprintCallable, Category = "RealGazebo|Vehicle Cameras", meta = (DeprecatedFunction, DeprecationMessage = "Use DeactivateAllViewerCameras instead"))
+    void DeactivateAllCameras() { DeactivateAllViewerCameras(); }
+
+    UFUNCTION(BlueprintPure, Category = "RealGazebo|Vehicle Cameras", meta = (DeprecatedFunction, DeprecationMessage = "Use IsViewerFirstPersonCameraActive instead"))
+    bool IsFirstPersonCameraActive() const { return IsViewerFirstPersonCameraActive(); }
+
+    UFUNCTION(BlueprintPure, Category = "RealGazebo|Vehicle Cameras", meta = (DeprecatedFunction, DeprecationMessage = "Use IsViewerThirdPersonCameraActive instead"))
+    bool IsThirdPersonCameraActive() const { return IsViewerThirdPersonCameraActive(); }
 };
