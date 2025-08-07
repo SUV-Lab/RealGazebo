@@ -505,3 +505,13 @@ CLAUDE.md
 .claude/
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,visualstudio,unrealengine
+
+# Force include ALL ThirdParty files first
+!Source/ThirdParty/**/*
+
+# Then exclude specific large files that exceed GitHub's 100MB limit
+Source/ThirdParty/GStreamer/Win64/lib/gstreamer-1.0/libgstaws.a
+Source/ThirdParty/GStreamer/Win64/lib/gstreamer-1.0/libgstquinn.a  
+Source/ThirdParty/GStreamer/Win64/lib/gstreamer-1.0/libgstwebrtchttp.a
+Source/ThirdParty/GStreamer/Win64/lib/gstreamer-1.0/libgstrswebrtc.a
+Source/ThirdParty/GStreamer/Win64/lib/gstreamer-1.0/libgstreqwest.a
