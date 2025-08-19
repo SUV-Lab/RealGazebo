@@ -34,7 +34,10 @@ public class RealGazebo : ModuleRules
                 "Renderer",
                 "RHICore",
                 "Sockets",
-                "Networking"
+                "Networking",
+                "UMG",
+                "Slate",
+                "SlateCore"
             }
             );
             
@@ -42,10 +45,14 @@ public class RealGazebo : ModuleRules
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
+                // Camera system
+                "CinematicCamera",
                 "CoreUObject",
                 "Engine",
                 "Slate",
                 "SlateCore",
+                "UMG",
+                "ToolWidgets",
                 // ... add private dependencies that you statically link with here ...	
                 "EditorStyle",
                 "ToolMenus",
@@ -256,13 +263,13 @@ public class RealGazebo : ModuleRules
 
     private void SetupLinuxGStreamer(string GStreamerPath)
     {
-        string GStreamerLibPath = Path.Combine(GStreamerPath, "Linux", "lib");
+        string GStreamerLibPath = Path.Combine(GStreamerPath, "Linux", "lib", "x86_64-linux-gnu");
         string GStreamerIncludePath = Path.Combine(GStreamerPath, "Linux", "include");
 
         // Include 경로 추가
         PublicIncludePaths.Add(Path.Combine(GStreamerIncludePath, "gstreamer-1.0"));
         PublicIncludePaths.Add(Path.Combine(GStreamerIncludePath, "glib-2.0"));
-        PublicIncludePaths.Add(Path.Combine(GStreamerIncludePath, "glib-2.0", "include"));
+        PublicIncludePaths.Add(Path.Combine(GStreamerLibPath, "glib-2.0", "include"));
 
         // 필수 라이브러리들
         string[] RequiredLibs = {
@@ -291,7 +298,7 @@ public class RealGazebo : ModuleRules
         }
 
         // GStreamer 플러그인 디렉토리도 포함
-        string PluginsPath = Path.Combine(GStreamerPath, "Linux", "lib", "gstreamer-1.0");
+        string PluginsPath = Path.Combine(GStreamerPath, "Linux", "lib", "x86_64-linux-gnu", "gstreamer-1.0");
         if (Directory.Exists(PluginsPath))
         {
             RuntimeDependencies.Add(Path.Combine(PluginsPath, "*"));

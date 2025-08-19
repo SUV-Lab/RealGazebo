@@ -6,7 +6,10 @@
 #include "GameFramework/Actor.h"
 #include "GazeboUnifiedDataReceiver.h"
 #include "GazeboVehicleActor.h"
+#include "UserCameraManager.h"
 #include "GazeboVehicleManager.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVehicleSpawned, AGazeboVehicleActor*, Vehicle);
 
 UCLASS()
 class REALGAZEBO_API AGazeboVehicleManager : public AActor
@@ -28,6 +31,10 @@ public:
     // GazeboUnifiedDataReceiver 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
     UGazeboUnifiedDataReceiver* UnifiedDataReceiver;
+
+    // Camera Manager
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RealGazebo|Components")
+    UUserCameraManager* CameraManager;
 
     // Configuration  -----
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Vehicle Configuration")
@@ -81,4 +88,8 @@ private:
 
     // Helper function for internal use (returns pointer)
     FGazeboVehicleTableRow* GetVehicleInfoInternal(uint8 VehicleType) const;
+
+    // Events
+    UPROPERTY(BlueprintAssignable, Category = "RealGazebo|Vehicle Manager")
+    FOnVehicleSpawned OnVehicleSpawned;
 };

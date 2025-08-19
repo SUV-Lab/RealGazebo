@@ -10,18 +10,18 @@
 #include "HAL/RunnableThread.h"
 #include "GameFramework/Actor.h"
 
-// Windows 플랫폼 타입 관리 - GStreamer 포함 전에 숨기기
+#if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/PreWindowsApi.h"
+#endif
 
 // GStreamer 헤더 파일들
 #include <gst/gst.h>
 #include <gst/rtsp-server/rtsp-server.h>
 #include <gst/app/gstappsrc.h>
 
-// Windows 플랫폼 타입 관리 - GStreamer 포함 후에 복원
-#include "Windows/PostWindowsApi.h"
+#if PLATFORM_WINDOWS
 #include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 // GLib의 TRUE/FALSE 매크로 정의
 #ifndef TRUE

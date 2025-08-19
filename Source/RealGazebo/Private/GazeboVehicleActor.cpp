@@ -7,13 +7,28 @@ AGazeboVehicleActor::AGazeboVehicleActor()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // Create root component
-    RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
-    RootComponent = RootSceneComponent;
-
-    // Create mesh component
+    // Create vehicle mesh as root component
     VehicleMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VehicleMesh"));
-    VehicleMesh->SetupAttachment(RootComponent);
+    RootComponent = VehicleMesh;
+
+    // Create Viewer First Person Camera - attached to VehicleMesh
+    ViewerFirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ViewerFirstPersonCamera"));
+    ViewerFirstPersonCamera->SetupAttachment(VehicleMesh);
+    ViewerFirstPersonCamera->SetActive(false); // Start inactive
+
+    // Create Viewer Third Person Spring Arm - attached to VehicleMesh
+    ViewerThirdPersonSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("ViewerThirdPersonSpringArm"));
+    ViewerThirdPersonSpringArm->SetupAttachment(VehicleMesh);
+    ViewerThirdPersonSpringArm->bUsePawnControlRotation = false;
+    ViewerThirdPersonSpringArm->bInheritPitch = false;
+    ViewerThirdPersonSpringArm->bInheritYaw = false;
+    ViewerThirdPersonSpringArm->bInheritRoll = false;
+    ViewerThirdPersonSpringArm->bDoCollisionTest = false; // Disable collision for smooth camera
+
+    // Create Viewer Third Person Camera - attached to spring arm
+    ViewerThirdPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ViewerThirdPersonCamera"));
+    ViewerThirdPersonCamera->SetupAttachment(ViewerThirdPersonSpringArm, USpringArmComponent::SocketName);
+    ViewerThirdPersonCamera->SetActive(false); // Start inactive
 
     // Initialize variables
     VehicleNum = 0;
@@ -23,7 +38,7 @@ AGazeboVehicleActor::AGazeboVehicleActor()
     LastUpdateTime = 0.0f;
     LastServoUpdateTime = 0.0f;
     TargetPosition = FVector::ZeroVector;
-    TargetQuaternion = FQuat::Identity;
+    TargetRotation = FRotator::ZeroRotator;
 }
 
 void AGazeboVehicleActor::BeginPlay()
@@ -32,8 +47,8 @@ void AGazeboVehicleActor::BeginPlay()
     
     SetupVehicleMesh();
     
-    UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleActor: Vehicle_%d (Type: %d) spawned"), 
-           VehicleNum, VehicleType);
+    UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleActor: %s (Type: %d) spawned with viewer cameras"), 
+           *GetActorLabel(), VehicleType);
 }
 
 void AGazeboVehicleActor::Tick(float DeltaTime)
@@ -58,7 +73,7 @@ void AGazeboVehicleActor::UpdateVehiclePose(const FGazeboPoseData& PoseData)
     if (bSmoothMovement)
     {
         TargetPosition = PoseData.Position;
-        TargetQuaternion = PoseData.Rotation.Quaternion();
+        TargetRotation = PoseData.Rotation;
         bHasTarget = true;
     }
     else
@@ -80,7 +95,7 @@ void AGazeboVehicleActor::SetupVehicleMesh()
 void AGazeboVehicleActor::SmoothMoveToTarget(float DeltaTime)
 {
     FVector CurrentLocation = GetActorLocation();
-    FQuat CurrentQuaternion = GetActorRotation().Quaternion();
+    FRotator CurrentRotation = GetActorRotation();
 
     // Calculate interpolation speed based on distance
     float DistanceToTarget = FVector::Dist(CurrentLocation, TargetPosition);
@@ -100,21 +115,20 @@ void AGazeboVehicleActor::SmoothMoveToTarget(float DeltaTime)
     FVector NewLocation = FMath::VInterpTo(CurrentLocation, TargetPosition, DeltaTime, DynamicSpeed);
     SetActorLocation(NewLocation);
 
-    // Interpolate rotation using quaternion SLERP (avoids gimbal lock)
-    FQuat NewQuaternion = FQuat::Slerp(CurrentQuaternion, TargetQuaternion, FMath::Clamp(DeltaTime * DynamicSpeed, 0.0f, 1.0f));
-    SetActorRotation(NewQuaternion.Rotator());
+    // Interpolate rotation
+    FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, DynamicSpeed);
+    SetActorRotation(NewRotation);
 
     // Check if we're close enough to target
     float FinalDistance = FVector::Dist(NewLocation, TargetPosition);
-    float QuaternionDot = FMath::Abs(NewQuaternion | TargetQuaternion);
-    float RotationDiff = FMath::Acos(FMath::Clamp(QuaternionDot, 0.0f, 1.0f)) * 2.0f; // Angular difference in radians
+    float RotationDiff = FMath::Abs(FRotator::ClampAxis(NewRotation.Yaw - TargetRotation.Yaw));
     
-    if (FinalDistance < 5.0f && RotationDiff < FMath::DegreesToRadians(2.0f)) // 5cm position, 2 degree rotation tolerance
+    if (FinalDistance < 5.0f && RotationDiff < 2.0f) // 5cm position, 2 degree rotation tolerance
     {
         bHasTarget = false;
         // Snap to final position for precision
         SetActorLocation(TargetPosition);
-        SetActorRotation(TargetQuaternion.Rotator());
+        SetActorRotation(TargetRotation);
     }
 }
 
@@ -213,6 +227,49 @@ void AGazeboVehicleActor::UpdateVehicleServo(const FGazeboServoData& ServoData)
             }
         }
     }
+}
+
+void AGazeboVehicleActor::SetViewerFirstPersonCameraActive(bool bActive)
+{
+    if (ViewerFirstPersonCamera)
+    {
+        ViewerFirstPersonCamera->SetActive(bActive);
+        UE_LOG(LogTemp, Log, TEXT("%s: Viewer first person camera %s"), 
+               *GetActorLabel(), bActive ? TEXT("ACTIVATED") : TEXT("DEACTIVATED"));
+    }
+}
+
+void AGazeboVehicleActor::SetViewerThirdPersonCameraActive(bool bActive)
+{
+    if (ViewerThirdPersonCamera)
+    {
+        ViewerThirdPersonCamera->SetActive(bActive);
+        UE_LOG(LogTemp, Log, TEXT("%s: Viewer third person camera %s"), 
+               *GetActorLabel(), bActive ? TEXT("ACTIVATED") : TEXT("DEACTIVATED"));
+    }
+}
+
+void AGazeboVehicleActor::DeactivateAllViewerCameras()
+{
+    if (ViewerFirstPersonCamera)
+    {
+        ViewerFirstPersonCamera->SetActive(false);
+    }
+    if (ViewerThirdPersonCamera)
+    {
+        ViewerThirdPersonCamera->SetActive(false);
+    }
+    UE_LOG(LogTemp, Log, TEXT("%s: All viewer cameras deactivated"), *GetActorLabel());
+}
+
+bool AGazeboVehicleActor::IsViewerFirstPersonCameraActive() const
+{
+    return ViewerFirstPersonCamera ? ViewerFirstPersonCamera->IsActive() : false;
+}
+
+bool AGazeboVehicleActor::IsViewerThirdPersonCameraActive() const
+{
+    return ViewerThirdPersonCamera ? ViewerThirdPersonCamera->IsActive() : false;
 }
 
 float AGazeboVehicleActor::ConvertRadiansPerSecToDegPerSec(float RadiansPerSec) const

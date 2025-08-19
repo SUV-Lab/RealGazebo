@@ -5,7 +5,7 @@
 #include "TextureResource.h"
 #include "RenderTargetPool.h"
 #include "EngineUtils.h"
-#include "HAL/PlatformFilemanager.h"
+#include "HAL/PlatformFileManager.h"
 #include "SocketSubsystem.h"
 #include "Interfaces/IPv4/IPv4Address.h"
 #include "Camera/CameraComponent.h"
@@ -1049,7 +1049,7 @@ void ARTSPCameraActor::BeginPlay()
     // RenderTarget 설정 검증
     UE_LOG(LogRTSPStreamer, Display, TEXT("RenderTarget 생성: %d x %d, 리소스 상태: %s"), 
            RenderTarget->SizeX, RenderTarget->SizeY, 
-           RenderTarget->Resource ? TEXT("있음") : TEXT("없음"));
+           RenderTarget->GetResource() ? TEXT("있음") : TEXT("없음"));
     
     // SceneCaptureComponent 설정
     SceneCaptureComponent->TextureTarget = RenderTarget;

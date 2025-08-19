@@ -3,6 +3,8 @@
 #include "GazeboVehicleManager.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
+#include "UserCameraManager.h"
 
 AGazeboVehicleManager::AGazeboVehicleManager()
 {
@@ -11,6 +13,9 @@ AGazeboVehicleManager::AGazeboVehicleManager()
 
     // Create unified data receiver component
     UnifiedDataReceiver = CreateDefaultSubobject<UGazeboUnifiedDataReceiver>(TEXT("UnifiedDataReceiver"));
+
+    // Create camera manager - ensure proper component creation
+    CameraManager = CreateDefaultSubobject<UUserCameraManager>(TEXT("UserCameraManager"));
 
     TotalVehiclesSpawned = 0;
 }
@@ -143,6 +148,14 @@ void AGazeboVehicleManager::OnVehiclePoseDataReceived(const FGazeboPoseData& Veh
             
             UE_LOG(LogTemp, Warning, TEXT("GazeboVehicleManager: Spawned %s_%d (Total: %d)"), 
                    *VehicleName, VehicleData.VehicleNum, TotalVehiclesSpawned);
+
+            // Notify camera manager of new vehicle
+            if (CameraManager)
+            {
+                CameraManager->OnVehicleSpawned(Vehicle);
+            }
+            
+            OnVehicleSpawned.Broadcast(Vehicle);
         }
     }
     
@@ -196,20 +209,25 @@ AGazeboVehicleActor* AGazeboVehicleManager::SpawnVehicle(const FGazeboPoseData& 
 
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-    FString VehicleName = GetVehicleKey(VehicleData);
-    SpawnParams.Name = FName(VehicleName);
+    // Prevent automatic BeginPlay call
+    SpawnParams.bDeferConstruction = true;
 
-    AGazeboVehicleActor* NewVehicle = GetWorld()->SpawnActor<AGazeboVehicleActor>(
-        VehicleClass, SpawnLocation, SpawnRotation, SpawnParams);
+    AGazeboVehicleActor* NewVehicle = GetWorld()->SpawnActorDeferred<AGazeboVehicleActor>(
+        VehicleClass, FTransform(SpawnRotation, SpawnLocation), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 
     if (NewVehicle)
     {
+        // Set vehicle identification BEFORE any initialization
         NewVehicle->VehicleNum = VehicleData.VehicleNum;
         NewVehicle->VehicleType = VehicleData.VehicleType;
         
         // Set vehicle name
-
-        NewVehicle->SetActorLabel(VehicleName);
+        FGazeboVehicleTableRow* VehicleInfo = GetVehicleInfoInternal(VehicleData.VehicleType);
+        FString VehicleName = VehicleInfo ? VehicleInfo->VehicleName : TEXT("Unknown");
+        NewVehicle->SetActorLabel(FString::Printf(TEXT("%s_%d"), *VehicleName, VehicleData.VehicleNum));
+        
+        // Finish construction and call BeginPlay
+        UGameplayStatics::FinishSpawningActor(NewVehicle, FTransform(SpawnRotation, SpawnLocation));
     }
 
     return NewVehicle;
