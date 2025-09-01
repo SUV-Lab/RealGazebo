@@ -19,6 +19,21 @@
 			"Name": "RealGazebo",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "RealGazeboStreaming",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "RealGazeboComm",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "RealGazeboUI",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	]
 }
