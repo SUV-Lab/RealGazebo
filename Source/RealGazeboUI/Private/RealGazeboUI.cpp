@@ -1,25 +1,24 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "RealGazeboUI.h"
+#include "Core/RealGazeboUISubsystem.h"
 
-IMPLEMENT_MODULE(FRealGazeboUIModule, RealGazeboUI)
+#define LOCTEXT_NAMESPACE "FRealGazeboUIModule"
 
-FRealGazeboUIModule* FRealGazeboUIModule::ModuleInstance = nullptr;
+DEFINE_LOG_CATEGORY(LogRealGazeboUI);
 
 void FRealGazeboUIModule::StartupModule()
 {
-    ModuleInstance = this;
-    UE_LOG(LogTemp, Log, TEXT("RealGazeboUI module started"));
+	UE_LOG(LogRealGazeboUI, Display, TEXT("RealGazeboUI Module: Starting up"));
+	
+	// Additional startup code can be added here
 }
 
 void FRealGazeboUIModule::ShutdownModule()
 {
-    UE_LOG(LogTemp, Log, TEXT("RealGazeboUI module shutdown"));
-    ModuleInstance = nullptr;
+	UE_LOG(LogRealGazeboUI, Display, TEXT("RealGazeboUI Module: Shutting down"));
+	
+	// Additional cleanup code can be added here
 }
 
-FRealGazeboUIModule& FRealGazeboUIModule::Get()
-{
-    check(ModuleInstance);
-    return *ModuleInstance;
-}
+#undef LOCTEXT_NAMESPACE
+	
+IMPLEMENT_MODULE(FRealGazeboUIModule, RealGazeboUI)
