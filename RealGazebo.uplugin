@@ -1,0 +1,43 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "RealGazebo",
+	"Description": "Unmanned vehicle simulation bridge for Gazebo integration with efficient data management",
+	"Category": "Simulation",
+	"CreatedBy": "SUV Lab, Intelligent Systems and Robotics Department, Chungbuk National University",
+	"CreatedByURL": "https://sites.google.com/view/suvlab/home",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "RealGazeboBridge",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ "Win64", "Linux" ]
+		},
+		{
+			"Name": "RealGazeboStreaming",
+			"Type": "Runtime",
+			"LoadingPhase": "PostEngineInit",
+			"PlatformAllowList": [ "Win64", "Linux" ]
+		},
+		{
+			"Name": "RealGazeboUI",
+			"Type": "Runtime",
+			"LoadingPhase": "PostEngineInit",
+			"PlatformAllowList": [ "Win64", "Linux" ]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "PixelCapture",
+			"Enabled": true
+		}
+	]
+}
