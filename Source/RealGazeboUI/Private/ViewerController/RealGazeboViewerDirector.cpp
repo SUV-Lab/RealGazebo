@@ -119,7 +119,7 @@ void ARealGazeboViewerDirector::InitializeForBeginPlay()
     // Discover vehicles
     DiscoverVehicles();
 
-    // Setup input bindings (only M/F/B keys needed now)
+    // Setup input bindings
     SetupInputBindings();
 
     // Don't start in manual mode - let user start with UE5's default pawn
@@ -137,7 +137,11 @@ void ARealGazeboViewerDirector::SetupInputBindings()
     URealGazeboBlueprintLib::BindActionToKey(TEXT("RealGazebo_FirstPersonCamera"), EKeys::F, this, &ARealGazeboViewerDirector::InputFirstPersonCamera);
     URealGazeboBlueprintLib::BindActionToKey(TEXT("RealGazebo_ThirdPersonCamera"), EKeys::B, this, &ARealGazeboViewerDirector::InputThirdPersonCamera);
 
-    // Bind camera preset keys (1, 2, 3)
+    // Bind vehicle switching keys
+    URealGazeboBlueprintLib::BindActionToKey(TEXT("RealGazebo_PreviousVehicle"), EKeys::Comma, this, &ARealGazeboViewerDirector::InputPreviousVehicle);
+    URealGazeboBlueprintLib::BindActionToKey(TEXT("RealGazebo_NextVehicle"), EKeys::Period, this, &ARealGazeboViewerDirector::InputNextVehicle);
+
+    // Bind camera preset keys (1-7)
     URealGazeboBlueprintLib::BindActionToKey(TEXT("RealGazebo_CameraPreset1"), EKeys::One, this, &ARealGazeboViewerDirector::InputPreset1);
     URealGazeboBlueprintLib::BindActionToKey(TEXT("RealGazebo_CameraPreset2"), EKeys::Two, this, &ARealGazeboViewerDirector::InputPreset2);
     URealGazeboBlueprintLib::BindActionToKey(TEXT("RealGazebo_CameraPreset3"), EKeys::Three, this, &ARealGazeboViewerDirector::InputPreset3);
@@ -165,6 +169,47 @@ void ARealGazeboViewerDirector::DiscoverVehicles()
     }
 
     UE_LOG(LogRealGazeboUI, Log, TEXT("ViewerDirector: Discovered %d vehicles"), AvailableVehicles.Num());
+}
+
+void ARealGazeboViewerDirector::CycleCurrentVehicle(int32 Direction)
+{
+    if (Direction == 0)
+    {
+        return;
+    }
+
+    APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+    AVehicleBasePawn* PossessedVehicle = PC ? Cast<AVehicleBasePawn>(PC->GetPawn()) : nullptr;
+    if (!IsValid(PossessedVehicle))
+    {
+        return;
+    }
+
+    int32 CurrentIndex = AvailableVehicles.IndexOfByKey(PossessedVehicle);
+    if (CurrentIndex == INDEX_NONE)
+    {
+        DiscoverVehicles();
+        CurrentIndex = AvailableVehicles.IndexOfByKey(PossessedVehicle);
+    }
+
+    const int32 VehicleCount = AvailableVehicles.Num();
+    if (CurrentIndex == INDEX_NONE || VehicleCount < 2)
+    {
+        return;
+    }
+
+    const int32 StepDirection = Direction > 0 ? 1 : -1;
+    for (int32 Step = 1; Step < VehicleCount; ++Step)
+    {
+        const int32 CandidateIndex = (CurrentIndex + StepDirection * Step + VehicleCount) % VehicleCount;
+        AVehicleBasePawn* CandidateVehicle = AvailableVehicles[CandidateIndex];
+        if (IsValid(CandidateVehicle) && CandidateVehicle != PossessedVehicle)
+        {
+            SetCurrentVehicle(CandidateVehicle);
+            VehicleChangedByInputDelegate.Broadcast(CandidateVehicle);
+            return;
+        }
+    }
 }
 
 void ARealGazeboViewerDirector::SetCameraMode(ERealGazeboViewerMode NewMode)
@@ -195,13 +240,23 @@ void ARealGazeboViewerDirector::SetCameraMode(ERealGazeboViewerMode NewMode)
 
 void ARealGazeboViewerDirector::SetCurrentVehicle(AVehicleBasePawn* Vehicle)
 {
-    if (CurrentVehicle == Vehicle)
+    const bool bVehicleChanged = CurrentVehicle != Vehicle;
+    if (!bVehicleChanged)
     {
-        return;
+        APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+        const bool bNeedsPossessionRestore = IsValid(Vehicle) && PC && PC->GetPawn() != Vehicle;
+        if (!bNeedsPossessionRestore)
+        {
+            return;
+        }
+
+        UE_LOG(LogRealGazeboUI, Log,
+               TEXT("ViewerDirector: Restoring possession and camera for current vehicle %s"),
+               *Vehicle->GetName());
     }
 
     // Disable cameras on previous vehicle if using component system
-    if (CurrentVehicle)
+    if (bVehicleChanged && CurrentVehicle)
     {
         URealGazeboCameraControllerComponent* PreviousCameraController = FindCameraControllerForVehicle(CurrentVehicle);
         if (PreviousCameraController)
@@ -210,7 +265,10 @@ void ARealGazeboViewerDirector::SetCurrentVehicle(AVehicleBasePawn* Vehicle)
         }
     }
 
-    CurrentVehicle = Vehicle;
+    if (bVehicleChanged)
+    {
+        CurrentVehicle = Vehicle;
+    }
 
     if (CurrentVehicle)
     {
@@ -550,6 +608,16 @@ void ARealGazeboViewerDirector::InputFirstPersonCamera()
 void ARealGazeboViewerDirector::InputThirdPersonCamera()
 {
     SetCameraMode(ERealGazeboViewerMode::ThirdPerson);
+}
+
+void ARealGazeboViewerDirector::InputPreviousVehicle()
+{
+    CycleCurrentVehicle(-1);
+}
+
+void ARealGazeboViewerDirector::InputNextVehicle()
+{
+    CycleCurrentVehicle(1);
 }
 
 void ARealGazeboViewerDirector::InputPreset1()

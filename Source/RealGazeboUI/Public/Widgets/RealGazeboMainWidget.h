@@ -20,6 +20,11 @@
 class UGazeboBridgeSubsystem;
 class ARealGazeboViewerDirector;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FRealGazeboVehicleListItemChangedByInput,
+    URealGazeboVehicleListItem*,
+    VehicleItem);
+
 /**
  * Vehicle sorting mode for UI list
  */
@@ -175,6 +180,10 @@ public:
     // Events (Blueprint Implementable)
     //----------------------------------------------------------
 
+    /** Broadcast when comma/period input changes the viewer vehicle */
+    UPROPERTY(BlueprintAssignable, Category = "Events|Camera")
+    FRealGazeboVehicleListItemChangedByInput OnVehicleChangedByInput;
+
     /** Called when a vehicle is selected in the list */
     UFUNCTION(BlueprintImplementableEvent, Category = "Events")
     void OnVehicleSelected(URealGazeboVehicleListItem* SelectedVehicle);
@@ -272,6 +281,9 @@ protected:
 
     /** Handle entry widget generation/recycling for proper selection state */
     void OnEntryWidgetGenerated(UUserWidget& GeneratedWidget);
+
+    /** Convert a keyboard-selected vehicle Pawn to its existing ListView item */
+    void HandleVehicleChangedByInput(class AVehicleBasePawn* Vehicle);
 
     //----------------------------------------------------------
     // Reset Button & Fade Functionality
