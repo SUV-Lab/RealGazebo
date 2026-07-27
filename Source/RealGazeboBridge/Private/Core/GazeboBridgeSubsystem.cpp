@@ -269,9 +269,27 @@ bool UGazeboBridgeSubsystem::IsBridgeActive() const
 
 void UGazeboBridgeSubsystem::ClearAllVehicles()
 {
+    TArray<AVehicleBasePawn*> UntrackedVisualPawns;
+    for (const TPair<FVehicleID, FVehicleRuntimeData>& Pair : VehicleDataMap)
+    {
+        AVehicleBasePawn* VisualPawn = Pair.Value.VisualPawn.Get();
+        if (IsValid(VisualPawn) && (!VehiclePool || !VehiclePool->IsVehicleTracked(VisualPawn)))
+        {
+            UntrackedVisualPawns.AddUnique(VisualPawn);
+        }
+    }
+
     if (VehiclePool)
     {
         VehiclePool->ReleaseAllActiveVehicles();
+    }
+
+    for (AVehicleBasePawn* VisualPawn : UntrackedVisualPawns)
+    {
+        if (IsValid(VisualPawn))
+        {
+            VisualPawn->Destroy();
+        }
     }
 
     VehicleDataMap.Empty();
@@ -384,6 +402,82 @@ TArray<FVehicleID> UGazeboBridgeSubsystem::FindVehiclesByNum(uint8 VehicleNum) c
     }
 
     return FoundVehicles;
+}
+
+bool UGazeboBridgeSubsystem::RegisterVehiclePawn(const FVehicleID& VehicleID, AVehicleBasePawn* VehiclePawn)
+{
+    if (!IsValid(VehiclePawn))
+    {
+        UE_LOG(LogRealGazeboBridge, Warning,
+               TEXT("RegisterVehiclePawn failed: invalid pawn for vehicle %s"),
+               *VehicleID.ToString());
+        return false;
+    }
+
+    FVehicleRuntimeData& RuntimeData = VehicleDataMap.FindOrAdd(VehicleID);
+    if (RuntimeData.VisualPawn.IsValid() && RuntimeData.VisualPawn.Get() != VehiclePawn)
+    {
+        UE_LOG(LogRealGazeboBridge, Warning,
+               TEXT("RegisterVehiclePawn failed: vehicle %s already has a different visual pawn"),
+               *VehicleID.ToString());
+        return false;
+    }
+
+    RuntimeData.Position = VehiclePawn->GetActorLocation();
+    RuntimeData.Rotation = VehiclePawn->GetActorRotation().Quaternion();
+    RuntimeData.LastUpdateTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+    RuntimeData.VehicleType = VehicleID.VehicleType;
+    RuntimeData.VisualPawn = VehiclePawn;
+
+    VehiclePawn->InitializeForPool(VehicleID, VehicleID.VehicleType);
+
+    if (OnVehicleSpawned.IsBound())
+    {
+        FBridgePoseData PoseData;
+        PoseData.VehicleNum = VehicleID.VehicleNum;
+        PoseData.VehicleType = VehicleID.VehicleType;
+        PoseData.Position = RuntimeData.Position;
+        PoseData.Rotation = RuntimeData.Rotation.Rotator();
+
+        OnVehicleSpawned.Broadcast(PoseData);
+    }
+
+    UE_LOG(LogRealGazeboBridge, Display,
+           TEXT("Registered existing vehicle pawn: %s (%s)"),
+           *VehicleID.ToString(), *VehiclePawn->GetName());
+
+    return true;
+}
+
+bool UGazeboBridgeSubsystem::UnregisterVehiclePawn(const FVehicleID& VehicleID, bool bDestroyVisualPawn)
+{
+    FVehicleRuntimeData* RuntimeData = VehicleDataMap.Find(VehicleID);
+    if (!RuntimeData)
+    {
+        UE_LOG(LogRealGazeboBridge, Warning,
+               TEXT("UnregisterVehiclePawn failed: vehicle %s is not registered"),
+               *VehicleID.ToString());
+        return false;
+    }
+
+    AVehicleBasePawn* VisualPawn = RuntimeData->VisualPawn.Get();
+    if (bDestroyVisualPawn && IsValid(VisualPawn))
+    {
+        if (VehiclePool && VehiclePool->IsVehicleTracked(VisualPawn))
+        {
+            VehiclePool->DestroyVehicleActor(VisualPawn);
+        }
+
+        VisualPawn->Destroy();
+    }
+
+    VehicleDataMap.Remove(VehicleID);
+
+    UE_LOG(LogRealGazeboBridge, Display,
+           TEXT("Unregistered vehicle pawn: %s (DestroyVisualPawn=%s)"),
+           *VehicleID.ToString(), bDestroyVisualPawn ? TEXT("true") : TEXT("false"));
+
+    return true;
 }
 
 bool UGazeboBridgeSubsystem::GetVehicleConfig(uint8 VehicleType, FBridgeVehicleConfigRow& OutConfig) const
@@ -506,7 +600,7 @@ void UGazeboBridgeSubsystem::BatchUpdateVehicles()
 }
 
 void UGazeboBridgeSubsystem::GetPerformanceStats(int32& OutTotalVehicles, int32& OutVisibleVehicles, 
-                                               float& OutAverageUpdateTime, float& OutMemoryUsageMB) const
+                                                 float& OutAverageUpdateTime, float& OutMemoryUsageMB) const
 {
     OutTotalVehicles = GetTotalVehicleCount();
     OutVisibleVehicles = GetVisibleVehicleCount();
