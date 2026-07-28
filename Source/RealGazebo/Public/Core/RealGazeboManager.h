@@ -18,7 +18,14 @@
 class UGazeboBridgeSubsystem;
 class URealGazeboUISubsystem;
 class URealGazeboStreamingSubsystem;
+class URealGazeboVehicleListItem;
 class ARealGazeboViewerDirector;
+class AVehicleBasePawn;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+    FRealGazeboVehicleListItemChangedByInput,
+    URealGazeboVehicleListItem*,
+    VehicleItem);
 
 /**
  * Unified RealGazebo Manager Actor
@@ -359,6 +366,10 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "RealGazebo|Bridge Events")
     FOnVehicleDataReceived OnVehicleSpawned;
 
+    /** Called when comma/period input changes the viewer vehicle */
+    UPROPERTY(BlueprintAssignable, Category = "RealGazebo|Camera Events")
+    FRealGazeboVehicleListItemChangedByInput OnVehicleChangedByInput;
+
     //----------------------------------------------------------
     // Events - UI Lifecycle (Blueprint Implementable)
     //----------------------------------------------------------
@@ -417,6 +428,10 @@ protected:
     UPROPERTY()
     TWeakObjectPtr<ARealGazeboViewerDirector> ViewerDirector;
 
+    /** Vehicle list item retained for the latest keyboard-selected vehicle */
+    UPROPERTY(Transient)
+    TObjectPtr<URealGazeboVehicleListItem> InputSelectedVehicleItem;
+
     //----------------------------------------------------------
     // Status Display (Visible for Debug)
     //----------------------------------------------------------
@@ -466,6 +481,15 @@ protected:
 
     /** Configure performance and debug settings */
     void ConfigurePerformanceAndDebugSettings();
+
+    /** Bind keyboard vehicle-change notifications from the viewer director */
+    void BindViewerDirectorEvents();
+
+    /** Unbind keyboard vehicle-change notifications from the viewer director */
+    void UnbindViewerDirectorEvents();
+
+    /** Convert a keyboard-selected vehicle Pawn to a Blueprint vehicle item */
+    void HandleVehicleChangedByInput(AVehicleBasePawn* Vehicle);
 
     /** Get the player controller for widget operations */
     APlayerController* GetPlayerController() const;

@@ -127,11 +127,6 @@ void URealGazeboMainWidget::NativeDestruct()
 {
     // Destructing UI
 
-    if (ViewerDirector.IsValid())
-    {
-        ViewerDirector->OnVehicleChangedByInput().RemoveAll(this);
-    }
-    
     // Clear timer
     if (UWorld* World = GetWorld())
     {
@@ -612,38 +607,9 @@ void URealGazeboMainWidget::SetVehicleTypeImageDataTable(UDataTable* DataTable)
 
 void URealGazeboMainWidget::SetViewerDirector(ARealGazeboViewerDirector* InViewerDirector)
 {
-    if (ViewerDirector.IsValid())
-    {
-        ViewerDirector->OnVehicleChangedByInput().RemoveAll(this);
-    }
-
     ViewerDirector = InViewerDirector;
 
-    if (ViewerDirector.IsValid())
-    {
-        ViewerDirector->OnVehicleChangedByInput().AddUObject(
-            this,
-            &URealGazeboMainWidget::HandleVehicleChangedByInput);
-    }
-
     UE_LOG(LogRealGazeboUI, Log, TEXT("MainWidget: ViewerDirector reference set for camera integration"));
-}
-
-void URealGazeboMainWidget::HandleVehicleChangedByInput(AVehicleBasePawn* Vehicle)
-{
-    URealGazeboVehicleListItem* VehicleItem = Vehicle
-        ? GetVehicleItem(Vehicle->VehicleID)
-        : nullptr;
-
-    if (!VehicleItem && Vehicle)
-    {
-        UE_LOG(LogRealGazeboUI, Warning,
-               TEXT("MainWidget: No list item found for keyboard-selected vehicle ID %d_%d"),
-               Vehicle->VehicleID.VehicleType,
-               Vehicle->VehicleID.VehicleNum);
-    }
-
-    OnVehicleChangedByInput.Broadcast(VehicleItem);
 }
 
 AVehicleBasePawn* URealGazeboMainWidget::FindVehiclePawnByID(const FVehicleID& VehicleID) const
