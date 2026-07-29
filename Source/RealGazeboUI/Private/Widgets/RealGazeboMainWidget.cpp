@@ -126,7 +126,7 @@ void URealGazeboMainWidget::NativeConstruct()
 void URealGazeboMainWidget::NativeDestruct()
 {
     // Destructing UI
-    
+
     // Clear timer
     if (UWorld* World = GetWorld())
     {
@@ -608,6 +608,7 @@ void URealGazeboMainWidget::SetVehicleTypeImageDataTable(UDataTable* DataTable)
 void URealGazeboMainWidget::SetViewerDirector(ARealGazeboViewerDirector* InViewerDirector)
 {
     ViewerDirector = InViewerDirector;
+
     UE_LOG(LogRealGazeboUI, Log, TEXT("MainWidget: ViewerDirector reference set for camera integration"));
 }
 

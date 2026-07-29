@@ -17,6 +17,8 @@
 class AVehicleBasePawn;
 class URealGazeboCameraControllerComponent;
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FRealGazeboViewerVehicleChangedByInput, AVehicleBasePawn*);
+
 /**
  * Central camera director for RealGazebo viewer system
  * Simplified approach using UE5's DefaultPawn for manual camera
@@ -58,6 +60,9 @@ public:
     /** Get the currently followed vehicle */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "RealGazebo|Viewer")
     AVehicleBasePawn* GetCurrentVehicle() const { return CurrentVehicle; }
+
+    /** Native event fired when the current vehicle changes through keyboard input */
+    FRealGazeboViewerVehicleChangedByInput& OnVehicleChangedByInput() { return VehicleChangedByInputDelegate; }
 
     /** Set the vehicle to follow (for first/third person cameras) */
     UFUNCTION(BlueprintCallable, Category = "RealGazebo|Viewer")
@@ -125,6 +130,12 @@ private:
     /** Input handler for third person camera mode (B key) */
     void InputThirdPersonCamera();
 
+    /** Input handler for selecting the previous vehicle (< key) */
+    void InputPreviousVehicle();
+
+    /** Input handler for selecting the next vehicle (> key) */
+    void InputNextVehicle();
+
     /** Input handler for camera preset 1 (1 key - C-Track) */
     void InputPreset1();
 
@@ -185,6 +196,9 @@ private:
     UPROPERTY()
     APawn* OriginalPawn;
 
+    /** Notifies UI integrations after comma/period vehicle switching */
+    FRealGazeboViewerVehicleChangedByInput VehicleChangedByInputDelegate;
+
     //----------------------------------------------------------
     // Internal Methods
     //----------------------------------------------------------
@@ -197,6 +211,9 @@ private:
 
     /** Discover all vehicles in the level */
     void DiscoverVehicles();
+
+    /** Select a vehicle relative to the currently possessed vehicle */
+    void CycleCurrentVehicle(int32 Direction);
 
     /** Find camera controller component for a specific vehicle */
     URealGazeboCameraControllerComponent* FindCameraControllerForVehicle(AVehicleBasePawn* Vehicle) const;

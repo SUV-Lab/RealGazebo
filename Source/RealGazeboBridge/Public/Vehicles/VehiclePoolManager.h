@@ -64,6 +64,9 @@ public:
     /** Remove actor from pool tracking (used before destroying the actor completely) */
     void DestroyVehicleActor(AVehicleBasePawn* Vehicle);
 
+    /** Check whether the actor is managed by this pool. */
+    bool IsVehicleTracked(const AVehicleBasePawn* Vehicle) const;
+
     /** Force release all active actors */
     void ReleaseAllActiveVehicles();
 

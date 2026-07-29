@@ -294,6 +294,11 @@ void UVehiclePoolManager::DestroyVehicleActor(AVehicleBasePawn* Vehicle)
     UE_LOG(LogRealGazeboBridge, Verbose, TEXT("Vehicle actor removed from pool tracking (ready for destruction)"));
 }
 
+bool UVehiclePoolManager::IsVehicleTracked(const AVehicleBasePawn* Vehicle) const
+{
+    return IsValid(Vehicle) && PawnToTypeMap.Contains(const_cast<AVehicleBasePawn*>(Vehicle));
+}
+
 void UVehiclePoolManager::ReleaseAllActiveVehicles()
 {
     TArray<AVehicleBasePawn*> ActorsToRelease;

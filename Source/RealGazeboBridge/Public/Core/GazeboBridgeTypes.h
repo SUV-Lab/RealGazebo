@@ -69,6 +69,15 @@ struct REALGAZEBOBRIDGE_API FVehicleID
     }
 };
 
+template<>
+struct TStructOpsTypeTraits<FVehicleID> : public TStructOpsTypeTraitsBase2<FVehicleID>
+{
+    enum
+    {
+        WithIdenticalViaEquality = true
+    };
+};
+
 //----------------------------------------------------------
 // Network Data Structures (maintain compatibility)
 //----------------------------------------------------------
