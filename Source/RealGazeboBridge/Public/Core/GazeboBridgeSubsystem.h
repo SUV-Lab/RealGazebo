@@ -146,6 +146,19 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Bridge|Vehicles")
     TArray<FVehicleID> FindVehiclesByNum(uint8 VehicleNum) const;
 
+    /** Register an already-spawned Unreal pawn as this vehicle's visual pawn.
+     *  Use this before sending a UE-initiated spawn command to Gazebo so the
+     *  returned pose stream updates the existing pawn instead of auto-spawning
+     *  a duplicate visual pawn. */
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Vehicles")
+    bool RegisterVehiclePawn(const FVehicleID& VehicleID, AVehicleBasePawn* VehiclePawn);
+
+    /** Remove a manually registered visual pawn from runtime tracking.
+     *  Use bDestroyVisualPawn=true when rolling back a local spawn after the
+     *  Gazebo spawn command failed. */
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Vehicles")
+    bool UnregisterVehiclePawn(const FVehicleID& VehicleID, bool bDestroyVisualPawn = false);
+
     UFUNCTION(BlueprintCallable, Category = "Bridge|Configuration")
     bool GetVehicleConfig(uint8 VehicleType, FBridgeVehicleConfigRow& OutConfig) const;
 

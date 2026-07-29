@@ -18,7 +18,9 @@
 #include "Components/Widget.h"
 #include "Blueprint/UserWidget.h"
 #include "Data/RealGazeboVehicleData.h"
+#include "Data/RealGazeboVehicleListItem.h"
 #include "Data/VehicleTypeImageData.h"
+#include "Vehicles/VehicleBasePawn.h"
 
 ARealGazeboManager::ARealGazeboManager()
 {
@@ -39,6 +41,7 @@ ARealGazeboManager::ARealGazeboManager()
     UISubsystem = nullptr;
     StreamingSubsystem = nullptr;
     ViewerDirector = nullptr;
+    InputSelectedVehicleItem = nullptr;
 
     // Initialize runtime DataTables
     RuntimeBridgeDataTable = nullptr;
@@ -360,6 +363,7 @@ void ARealGazeboManager::InitializeCameraUI()
     );
 
     ViewerDirector = UISubsystem->GetViewerDirector();
+    BindViewerDirectorEvents();
 
     // Configure camera presets on the viewer director
     if (ViewerDirector.IsValid() && CameraPresets.Num() > 0)
@@ -382,18 +386,64 @@ void ARealGazeboManager::InitializeCameraUI()
 
 void ARealGazeboManager::CleanupCameraUI()
 {
+    UnbindViewerDirectorEvents();
+
     if (UISubsystem.IsValid())
     {
         UISubsystem->CleanupCameraUI();
     }
 
     ViewerDirector = nullptr;
+    InputSelectedVehicleItem = nullptr;
     WidgetInViewportStatus = false;
     bDidStartUI = false;
     UIStatus = TEXT("Cleaned Up");
     OnUICleanedUp();
 
     UE_LOG(LogRealGazebo, Log, TEXT("Camera UI cleaned up"));
+}
+
+void ARealGazeboManager::BindViewerDirectorEvents()
+{
+    if (!ViewerDirector.IsValid())
+    {
+        return;
+    }
+
+    ViewerDirector->OnVehicleChangedByInput().RemoveAll(this);
+    ViewerDirector->OnVehicleChangedByInput().AddUObject(
+        this,
+        &ARealGazeboManager::HandleVehicleChangedByInput);
+}
+
+void ARealGazeboManager::UnbindViewerDirectorEvents()
+{
+    if (ViewerDirector.IsValid())
+    {
+        ViewerDirector->OnVehicleChangedByInput().RemoveAll(this);
+    }
+}
+
+void ARealGazeboManager::HandleVehicleChangedByInput(AVehicleBasePawn* Vehicle)
+{
+    InputSelectedVehicleItem = nullptr;
+
+    if (IsValid(Vehicle))
+    {
+        URealGazeboVehicleListItem* VehicleItem = NewObject<URealGazeboVehicleListItem>(this);
+        VehicleItem->VehicleID = Vehicle->VehicleID;
+        VehicleItem->VehicleTypeName = Vehicle->VehicleTypeName.IsEmpty()
+            ? FString::Printf(TEXT("Type_%d"), Vehicle->VehicleType)
+            : Vehicle->VehicleTypeName;
+        VehicleItem->VehicleName = FString::Printf(
+            TEXT("%s_%d"),
+            *VehicleItem->VehicleTypeName,
+            Vehicle->VehicleID.VehicleNum);
+        VehicleItem->UpdateFromRuntimeData(Vehicle->GetCurrentRuntimeData());
+        InputSelectedVehicleItem = VehicleItem;
+    }
+
+    OnVehicleChangedByInput.Broadcast(InputSelectedVehicleItem);
 }
 
 void ARealGazeboManager::SetMouseCursorAlwaysVisible(bool bVisible)
