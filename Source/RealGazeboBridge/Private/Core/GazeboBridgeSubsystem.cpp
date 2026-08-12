@@ -7,6 +7,7 @@
 
 #include "GazeboBridgeSubsystem.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Engine/DataTable.h"
 #include "DataStreamProcessor.h"
@@ -494,9 +495,19 @@ bool UGazeboBridgeSubsystem::GetVehicleConfig(uint8 VehicleType, FBridgeVehicleC
 
 UGazeboBridgeSubsystem* UGazeboBridgeSubsystem::GetBridgeSubsystem(const UObject* WorldContext)
 {
+	if (!GEngine || !WorldContext)
+	{
+		return nullptr;
+	}
+
     if (const UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull))
     {
-        return World->GetGameInstance()->GetSubsystem<UGazeboBridgeSubsystem>();
+        // UGameEngine 시작 과정에서는 Game 타입 World가 GameInstance보다 먼저 생성될 수 있습니다.
+        // 이 구간에서 호출되면 아직 Bridge를 조회할 수 없으므로 안전하게 null을 반환합니다.
+        if (UGameInstance* GameInstance = World->GetGameInstance())
+        {
+            return GameInstance->GetSubsystem<UGazeboBridgeSubsystem>();
+        }
     }
     
     return nullptr;
