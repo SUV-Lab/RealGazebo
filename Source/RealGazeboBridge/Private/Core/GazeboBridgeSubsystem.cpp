@@ -502,8 +502,8 @@ UGazeboBridgeSubsystem* UGazeboBridgeSubsystem::GetBridgeSubsystem(const UObject
 
     if (const UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull))
     {
-        // UGameEngine 시작 과정에서는 Game 타입 World가 GameInstance보다 먼저 생성될 수 있습니다.
-        // 이 구간에서 호출되면 아직 Bridge를 조회할 수 없으므로 안전하게 null을 반환합니다.
+        // During UGameEngine startup, a Game-type World can be created before its GameInstance.
+        // If called in that window the bridge can't be resolved yet, so return nullptr safely.
         if (UGameInstance* GameInstance = World->GetGameInstance())
         {
             return GameInstance->GetSubsystem<UGazeboBridgeSubsystem>();
