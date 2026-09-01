@@ -360,8 +360,11 @@ void AVehicleBasePawn::ApplyMotorSpeeds(const TArray<float>& MotorSpeeds)
     {
         if (URotatingMovementComponent* RotatingComp = RotatingComponents[i])
         {
-            // Convert from degrees per second to rotation rate
-            const float RotationRateDegPerSec = MotorSpeeds[i];
+            // Gazebo (right-handed, +Z rate = CCW from above) -> Unreal (left-handed,
+            // +Yaw = CW from above): the y-flip frame mapping is a reflection, so
+            // angular rates about the up axis must be negated, matching the
+            // quaternion conversion (X, -Y, Z, -W) used for poses.
+            const float RotationRateDegPerSec = -MotorSpeeds[i];
             RotatingComp->RotationRate = FRotator(0.0f, RotationRateDegPerSec, 0.0f);
         }
     }
