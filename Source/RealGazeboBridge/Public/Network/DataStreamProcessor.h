@@ -152,6 +152,8 @@ protected:
     static constexpr int32 PACKET_HEADER_SIZE = 3; // VehicleNum + VehicleType + MessageID
     static constexpr int32 POSE_PAYLOAD_SIZE = 28; // 7 floats (position XYZ + quaternion XYZW)
     static constexpr int32 EXPECTED_POSE_PACKET_SIZE = PACKET_HEADER_SIZE + POSE_PAYLOAD_SIZE;
+    static constexpr int32 WIND_PAYLOAD_SIZE = 13; // enable (u8) + 3 floats (wind velocity)
+    static constexpr int32 EXPECTED_WIND_PACKET_SIZE = PACKET_HEADER_SIZE + WIND_PAYLOAD_SIZE;
 
     //----------------------------------------------------------
     // Data Parsing Methods

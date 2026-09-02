@@ -289,6 +289,26 @@ void UDataStreamProcessor::ProcessSinglePacket(const FUDPData& PacketData)
             }
             break;
         }
+        case 6: // World wind state: the sim's answer to a wind query
+        {
+            if (PacketData.Data.Num() != EXPECTED_WIND_PACKET_SIZE)
+            {
+                TotalInvalidPackets++;
+                break;
+            }
+
+            // Same layout as the outbound wind command: [enable:u8] + 3 LE
+            // floats in the Gazebo world frame (m/s) - no frame conversion.
+            const bool bEnabled = PacketData.Data[PACKET_HEADER_SIZE] != 0;
+            const FVector Wind(BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 1),
+                               BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 5),
+                               BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 9));
+            if (UGazeboBridgeSubsystem* Subsystem = BridgeSubsystem.Get())
+            {
+                Subsystem->NotifyWorldWindState(bEnabled, Wind);
+            }
+            break;
+        }
         default:
         {
             TotalInvalidPackets++;

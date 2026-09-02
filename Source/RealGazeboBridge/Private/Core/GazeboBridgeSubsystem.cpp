@@ -8,6 +8,7 @@
 #include "GazeboBridgeSubsystem.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "TimerManager.h"
 #include "Engine/World.h"
 #include "Engine/DataTable.h"
 #include "DataStreamProcessor.h"
@@ -55,6 +56,10 @@ void UGazeboBridgeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UGazeboBridgeSubsystem::Deinitialize()
 {
+    if (UGameInstance* GameInstance = GetGameInstance())
+    {
+        GameInstance->GetTimerManager().ClearTimer(WindQueryRetryTimer);
+    }
     StopBridge();
     
     if (VehiclePool)
@@ -82,7 +87,7 @@ bool UGazeboBridgeSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 }
 
 //----------------------------------------------------------
-// Runtime Spawn Commands (UE -> simulation manager)
+// Runtime Commands (UE -> simulation manager): spawn/despawn, world wind
 //----------------------------------------------------------
 
 USpawnCommandSender* UGazeboBridgeSubsystem::EnsureSpawnSender()
@@ -105,25 +110,64 @@ void UGazeboBridgeSubsystem::NotifyGazeboHost(const FString& SenderIP)
     {
         LearnedGazeboHostIP = SenderIP;
         UE_LOG(LogRealGazeboBridge, Display,
-               TEXT("Spawn commands will target simulation host %s:%d"),
+               TEXT("Runtime commands (spawn/despawn/wind) will target simulation host %s:%d"),
                *SenderIP, SpawnCommandPort);
+        // First contact with this sim: find out whether it already has wind
+        // (a previous session may have left some blowing). The manager may
+        // open its command port a little after its first vehicle starts
+        // streaming, so keep asking until it answers.
+        WindQueryAttemptsLeft = 5;
+        bAwaitingWorldWindState = true;
+        RetryWorldWindQuery();
     }
+}
+
+void UGazeboBridgeSubsystem::RetryWorldWindQuery()
+{
+    if (!bAwaitingWorldWindState || WindQueryAttemptsLeft <= 0)
+    {
+        return;
+    }
+    --WindQueryAttemptsLeft;
+    RequestWorldWindState();
+    if (WindQueryAttemptsLeft > 0)
+    {
+        if (UGameInstance* GameInstance = GetGameInstance())
+        {
+            GameInstance->GetTimerManager().SetTimer(
+                WindQueryRetryTimer,
+                FTimerDelegate::CreateUObject(this, &UGazeboBridgeSubsystem::RetryWorldWindQuery),
+                1.0f, false);
+        }
+    }
+}
+
+USpawnCommandSender* UGazeboBridgeSubsystem::PrepareCommandSender(const TCHAR* CommandName,
+                                                                  FString& OutHostIP)
+{
+    OutHostIP = ResolveGazeboHostIP();
+    if (OutHostIP.IsEmpty())
+    {
+        UE_LOG(LogRealGazeboBridge, Warning,
+               TEXT("%s: simulation host unknown - set GazeboHostIP or wait for "
+                    "the first incoming sim packet"), CommandName);
+        return nullptr;
+    }
+
+    USpawnCommandSender* Sender = EnsureSpawnSender();
+    if (!Sender->SetDestination(OutHostIP, SpawnCommandPort))
+    {
+        return nullptr; // SetDestination logged why
+    }
+    return Sender;
 }
 
 bool UGazeboBridgeSubsystem::SpawnVehicleAt(uint8 VehicleTypeCode, uint8 VehicleNum,
                                             FVector WorldLocation, FRotator WorldRotation)
 {
-    const FString HostIP = ResolveGazeboHostIP();
-    if (HostIP.IsEmpty())
-    {
-        UE_LOG(LogRealGazeboBridge, Warning,
-               TEXT("SpawnVehicleAt: simulation host unknown - set GazeboHostIP "
-                    "or wait for the first incoming sim packet"));
-        return false;
-    }
-
-    USpawnCommandSender* Sender = EnsureSpawnSender();
-    if (!Sender->SetDestination(HostIP, SpawnCommandPort))
+    FString HostIP;
+    USpawnCommandSender* Sender = PrepareCommandSender(TEXT("SpawnVehicleAt"), HostIP);
+    if (!Sender)
     {
         return false;
     }
@@ -139,18 +183,78 @@ bool UGazeboBridgeSubsystem::SpawnVehicleAt(uint8 VehicleTypeCode, uint8 Vehicle
     return bSent;
 }
 
-bool UGazeboBridgeSubsystem::DespawnVehicle(const FVehicleID& VehicleID)
+bool UGazeboBridgeSubsystem::SetWorldWind(bool bEnable, FVector GazeboWindVelocity)
 {
-    const FString HostIP = ResolveGazeboHostIP();
-    if (HostIP.IsEmpty())
+    // The wire carries float32: reject NaN/inf AND doubles beyond float
+    // range, which would narrow to inf and be refused by the manager while
+    // this call reported success.
+    const double MaxFinite = static_cast<double>(TNumericLimits<float>::Max());
+    if (GazeboWindVelocity.ContainsNaN()
+        || FMath::Abs(GazeboWindVelocity.X) > MaxFinite
+        || FMath::Abs(GazeboWindVelocity.Y) > MaxFinite
+        || FMath::Abs(GazeboWindVelocity.Z) > MaxFinite)
     {
         UE_LOG(LogRealGazeboBridge, Warning,
-               TEXT("DespawnVehicle: simulation host unknown"));
+               TEXT("SetWorldWind: wind velocity is not a finite float - command not sent"));
         return false;
     }
 
-    USpawnCommandSender* Sender = EnsureSpawnSender();
-    if (!Sender->SetDestination(HostIP, SpawnCommandPort))
+    FString HostIP;
+    USpawnCommandSender* Sender = PrepareCommandSender(TEXT("SetWorldWind"), HostIP);
+    if (!Sender)
+    {
+        return false;
+    }
+
+    const bool bSent = Sender->SendWindCommand(bEnable, GazeboWindVelocity);
+    if (bSent)
+    {
+        UE_LOG(LogRealGazeboBridge, Display,
+               TEXT("Wind command sent: %s (%.2f, %.2f, %.2f) m/s -> %s:%d"),
+               bEnable ? TEXT("on") : TEXT("off"),
+               GazeboWindVelocity.X, GazeboWindVelocity.Y, GazeboWindVelocity.Z,
+               *HostIP, SpawnCommandPort);
+    }
+    return bSent;
+}
+
+bool UGazeboBridgeSubsystem::RequestWorldWindState()
+{
+    FString HostIP;
+    USpawnCommandSender* Sender = PrepareCommandSender(TEXT("RequestWorldWindState"), HostIP);
+    if (!Sender)
+    {
+        return false;
+    }
+
+    const bool bSent = Sender->SendWindQuery();
+    if (bSent)
+    {
+        UE_LOG(LogRealGazeboBridge, Display,
+               TEXT("Wind state query sent -> %s:%d"), *HostIP, SpawnCommandPort);
+    }
+    return bSent;
+}
+
+void UGazeboBridgeSubsystem::NotifyWorldWindState(bool bEnabled, const FVector& GazeboWindVelocity)
+{
+    bAwaitingWorldWindState = false;
+    if (UGameInstance* GameInstance = GetGameInstance())
+    {
+        GameInstance->GetTimerManager().ClearTimer(WindQueryRetryTimer);
+    }
+    UE_LOG(LogRealGazeboBridge, Display,
+           TEXT("World wind state received: %s (%.2f, %.2f, %.2f) m/s"),
+           bEnabled ? TEXT("on") : TEXT("off"),
+           GazeboWindVelocity.X, GazeboWindVelocity.Y, GazeboWindVelocity.Z);
+    OnWorldWindStateReceived.Broadcast(bEnabled, GazeboWindVelocity);
+}
+
+bool UGazeboBridgeSubsystem::DespawnVehicle(const FVehicleID& VehicleID)
+{
+    FString HostIP;
+    USpawnCommandSender* Sender = PrepareCommandSender(TEXT("DespawnVehicle"), HostIP);
+    if (!Sender)
     {
         return false;
     }

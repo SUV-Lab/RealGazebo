@@ -14,6 +14,11 @@
 #include <atomic>  // C++11 atomic operations for thread-safe state management
 #include "GazeboBridgeSubsystem.generated.h"
 
+/** Fired (game thread) when the simulation answers a world wind query. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWorldWindStateReceived,
+                                             bool, bEnabled,
+                                             FVector, GazeboWindVelocity);
+
 // Forward declarations
 class UDataStreamProcessor;
 class UVehiclePoolManager;
@@ -30,7 +35,7 @@ class APlayerCameraManager;
  * - Simple rendering (all vehicles visible)
  * - Batch processing for network data
  */
-UCLASS()
+UCLASS(BlueprintType)  // BlueprintType: lets Blueprints cache the reference in a variable
 class REALGAZEBOBRIDGE_API UGazeboBridgeSubsystem : public UGameInstanceSubsystem
 {
     GENERATED_BODY()
@@ -59,12 +64,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Network")
     FString ServerIPAddress = TEXT("");
 
-    /** Manager UDP port for runtime spawn/despawn commands (UE -> sim) */
+    /** Manager UDP port for runtime commands (spawn/despawn, wind; UE -> sim) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Network")
     int32 SpawnCommandPort = 5006;
 
-    /** Manager host for spawn commands. Leave empty to auto-learn it from
-     *  the source address of incoming simulation packets. */
+    /** Manager host for runtime commands (spawn/despawn, wind): an IPv4
+     *  address or a host name (localhost, host.docker.internal, ...). Leave
+     *  empty to auto-learn it from the source address of incoming simulation
+     *  packets. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Network")
     FString GazeboHostIP = TEXT("");
 
@@ -94,7 +101,8 @@ public:
     void RemoveVehicle(const FVehicleID& VehicleID);
 
     //----------------------------------------------------------
-    // Runtime Spawn Commands (UE -> simulation manager, UDP :5006)
+    // Runtime Commands (UE -> simulation manager, UDP :5006):
+    // vehicle spawn/despawn and the world wind setting
     //----------------------------------------------------------
 
     /** Ask the simulation manager to spawn a vehicle at a UE world transform.
@@ -111,14 +119,47 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Bridge|Spawn")
     bool DespawnVehicle(const FVehicleID& VehicleID);
 
+    /** Set the simulator's world wind (MessageID=6 to the manager).
+     *  GazeboWindVelocity is the wind in the Gazebo world frame, m/s
+     *  (x east, y north, z up), sent as-is — no Unreal-frame conversion.
+     *  bEnable=false switches the wind off. Fire-and-forget like spawn:
+     *  success shows up as vehicle behaviour / the manager log. The sim
+     *  keeps the last wind until it is changed, so vehicles spawned later
+     *  feel it too - only links declaring <enable_wind> in their SDF are
+     *  pushed (the x500 family and lc_62). Needs the simulation host
+     *  (GazeboHostIP, or the
+     *  address learned from the first incoming packet) - see
+     *  IsSimulationHostKnown(). */
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Environment")
+    bool SetWorldWind(bool bEnable, FVector GazeboWindVelocity);
+
+    /** True once spawn/wind commands have somewhere to go: GazeboHostIP is
+     *  set, or a sim packet has been received (the host is learned from its
+     *  source address). Before that, on an empty world, commands fail. */
+    UFUNCTION(BlueprintPure, Category = "Bridge|Status")
+    bool IsSimulationHostKnown() const { return !ResolveGazeboHostIP().IsEmpty(); }
+
+    /** Ask the simulation for its current world wind (MessageID=6, op=2).
+     *  The answer arrives asynchronously as OnWorldWindStateReceived. Sent
+     *  automatically once the sim host is learned (retried until answered);
+     *  call it again e.g. when the wind panel opens. Returns false when the
+     *  host is unknown (nothing was sent). */
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Environment")
+    bool RequestWorldWindState();
+
     /** Smallest vehicle num not in use across ALL types (or -1 when full).
      *  Nums must be globally unique: the sim keys ports/namespaces by num. */
     UFUNCTION(BlueprintCallable, Category = "Bridge|Spawn")
     int32 GetNextFreeVehicleNum() const;
 
     /** Called by DataStreamProcessor with each packet's source address so
-     *  spawn commands can target the sim host without configuration. */
+     *  runtime commands (spawn/despawn/wind) can target the sim host
+     *  without configuration. */
     void NotifyGazeboHost(const FString& SenderIP);
+
+    /** Called by DataStreamProcessor for a MessageID=6 packet from the sim:
+     *  the answer to a wind query. Fires OnWorldWindStateReceived. */
+    void NotifyWorldWindState(bool bEnabled, const FVector& GazeboWindVelocity);
 
     //----------------------------------------------------------
     // Vehicle Management
@@ -190,6 +231,10 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Bridge|Events")
     FOnVehicleDataReceived OnVehicleUpdated;
 
+    /** The simulation reported its world wind (answer to RequestWorldWindState). */
+    UPROPERTY(BlueprintAssignable, Category = "Bridge|Events")
+    FOnWorldWindStateReceived OnWorldWindStateReceived;
+
     //----------------------------------------------------------
     // Performance Monitoring
     //----------------------------------------------------------
@@ -202,7 +247,8 @@ public:
     // Static Access
     //----------------------------------------------------------
 
-    UFUNCTION(BlueprintCallable, Category = "Bridge|Access", meta = (CallInEditor = "true"))
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Access",
+              meta = (CallInEditor = "true", WorldContext = "WorldContext"))
     static UGazeboBridgeSubsystem* GetBridgeSubsystem(const UObject* WorldContext);
 
 public:
@@ -233,15 +279,27 @@ protected:
     UPROPERTY()
     TObjectPtr<UVehiclePoolManager> VehiclePool;
 
-    /** Outbound spawn/despawn command client (created on first use) */
+    /** Outbound runtime command client: spawn/despawn, wind (created on first use) */
     UPROPERTY()
     TObjectPtr<USpawnCommandSender> SpawnSender;
 
     /** Sim host learned from incoming packets (used when GazeboHostIP empty) */
     FString LearnedGazeboHostIP;
 
+    /** Auto-query on first contact: the sim's command port may still be
+     *  coming up while its first vehicle already streams, so the query is
+     *  repeated (1 Hz, a few attempts) until an answer arrives. */
+    FTimerHandle WindQueryRetryTimer;
+    int32 WindQueryAttemptsLeft = 0;
+    bool bAwaitingWorldWindState = false;
+    void RetryWorldWindQuery();
+
     USpawnCommandSender* EnsureSpawnSender();
     FString ResolveGazeboHostIP() const;
+    /** Shared preamble of every UE -> manager command: resolve the sim host
+     *  and point the sender at it. Returns nullptr (after logging) when the
+     *  host is unknown or unusable; OutHostIP is the resolved host string. */
+    USpawnCommandSender* PrepareCommandSender(const TCHAR* CommandName, FString& OutHostIP);
 
     //----------------------------------------------------------
     // Performance Optimization
