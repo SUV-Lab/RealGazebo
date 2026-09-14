@@ -12,9 +12,6 @@ public class RealGazeboStreaming : ModuleRules
     public RealGazeboStreaming(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-
-        // CRITICAL: Disable Unity builds to prevent BufferedPacket name collision
-        // between Live555 (MultiFramedRTPSource.hh) and Unreal (PacketHandler.h)
         bUseUnity = false;
 
         PublicIncludePaths.AddRange(new string[]
@@ -42,7 +39,6 @@ public class RealGazeboStreaming : ModuleRules
             "Engine",
             "RHI",
             "RenderCore",
-            "AVEncoder",
             "Live555",
             "RealGazeboBridge"
         });
@@ -51,9 +47,32 @@ public class RealGazeboStreaming : ModuleRules
         {
             "Slate",
             "SlateCore",
-            "DeveloperSettings",
-            "CUDA"
+            "DeveloperSettings"
         });
+
+        if (Target.Platform == UnrealTargetPlatform.Mac)
+        {
+            PrivateDependencyModuleNames.AddRange(new string[]
+            {
+                "AVCodecsCore",
+                "AVCodecsCoreRHI",
+                "VTCodecs",
+                "VTCodecsRHI"
+            });
+
+            PublicFrameworks.AddRange(new string[]
+            {
+                "AVFoundation",
+                "VideoToolbox",
+                "CoreMedia",
+                "CoreVideo"
+            });
+        }
+        else
+        {
+            PublicDependencyModuleNames.Add("AVEncoder");
+            PrivateDependencyModuleNames.Add("CUDA");
+        }
 
         if (Target.Platform == UnrealTargetPlatform.Win64 ||
             Target.Platform == UnrealTargetPlatform.Linux)
@@ -69,13 +88,7 @@ public class RealGazeboStreaming : ModuleRules
                 "D3D11RHI",
                 "D3D12RHI"
             });
-
             AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11", "DX12");
-        }
-
-        if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
-        {
-            PrivateDependencyModuleNames.Add("VulkanRHI");
         }
 
         if (Target.bBuildEditor)

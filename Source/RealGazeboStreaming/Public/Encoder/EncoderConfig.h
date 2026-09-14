@@ -11,7 +11,9 @@
 
 // UE 5.1: Must include full header to access nested enums
 // (FVideoEncoder::H264Profile, RateControlMode, MultipassMode)
+#if !PLATFORM_MAC
 #include "VideoEncoder.h"
+#endif
 
 /**
  * FEncoderConfig
@@ -101,9 +103,10 @@ struct FEncoderConfig
 	}
 
 	//----------------------------------------------------------
-	// AVEncoder API Mapping (UE 5.1)
+	// AVEncoder API Mapping (UE 5.1; unavailable on macOS)
 	//----------------------------------------------------------
 
+#if !PLATFORM_MAC
 	/** Convert to AVEncoder H.264 profile (UE 5.1: FVideoEncoder::H264Profile) */
 	AVEncoder::FVideoEncoder::H264Profile GetAVEncoderProfile() const;
 
@@ -112,6 +115,7 @@ struct FEncoderConfig
 
 	/** Convert to AVEncoder multipass mode (UE 5.1: FVideoEncoder::MultipassMode) */
 	AVEncoder::FVideoEncoder::MultipassMode GetMultipassMode() const;
+#endif
 
 	//----------------------------------------------------------
 	// Validation

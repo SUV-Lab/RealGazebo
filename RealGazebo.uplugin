@@ -19,43 +19,41 @@
 			"Name": "RealGazebo",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [
-				"Win64",
-				"Linux"
-			]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name": "RealGazeboBridge",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [
-				"Win64",
-				"Linux"
-			]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name": "RealGazeboUI",
 			"Type": "Runtime",
 			"LoadingPhase": "PostEngineInit",
-			"PlatformAllowList": [
-				"Win64",
-				"Linux"
-			]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name": "RealGazeboStreaming",
 			"Type": "Runtime",
 			"LoadingPhase": "PostEngineInit",
-			"PlatformAllowList": [
-				"Win64",
-				"Linux"
-			]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
 	],
 	"Plugins": [
 		{
 			"Name": "HardwareEncoders",
 			"Enabled": true
+		},
+		{
+			"Name": "AVCodecsCore",
+			"Enabled": true,
+			"PlatformAllowList": [ "Mac" ]
+		},
+		{
+			"Name": "VTCodecs",
+			"Enabled": true,
+			"PlatformAllowList": [ "Mac" ]
 		}
 	]
 }
