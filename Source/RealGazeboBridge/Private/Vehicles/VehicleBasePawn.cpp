@@ -100,8 +100,7 @@ void AVehicleBasePawn::UpdateVehiclePose(const FVector& Position, const FQuat& R
     }
     else
     {
-        SetActorLocation(Position);
-        SetActorRotation(Rotation);
+        SetActorLocationAndRotation(Position, Rotation);
     }
 }
 
@@ -281,8 +280,8 @@ void AVehicleBasePawn::PerformSmoothMovement(float DeltaTime)
     const FVector NewLocation = FMath::VInterpTo(CurrentLocation, TargetPosition, DeltaTime, DynamicSpeed);
     const FQuat NewRotation = FMath::QInterpTo(CurrentRotation, TargetRotation, DeltaTime, DynamicSpeed);
 
-    SetActorLocation(NewLocation);
-    SetActorRotation(NewRotation);
+    // One transform update instead of two (location, then rotation): this runs every frame per vehicle
+    SetActorLocationAndRotation(NewLocation, NewRotation);
 
     // Check if we've reached the target
     const float LocationTolerance = 1.0f; // 1cm
