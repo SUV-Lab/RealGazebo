@@ -15,10 +15,11 @@
 
 UVehiclePoolManager::UVehiclePoolManager()
 {
-    MaxActorsPerType = 100;
-    InitialPoolSize = 10;
+    // Same as the header defaults: the protocol allows 256 instances per type (VehicleNum 0-255)
+    MaxActorsPerType = 256;
+    InitialPoolSize = 20;
     bAutoExpandPools = true;
-    PoolExpansionSize = 5;
+    PoolExpansionSize = 10;
     bAutoShrinkPools = false;
     UnusedActorTimeout = 30.0f;
     
