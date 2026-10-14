@@ -87,12 +87,15 @@ protected:
     // IP filtering
     FString ExpectedIPAddress;
     
-    // Data processing
+    // Packets from the receiver thread to the game thread (one producer, one consumer),
+    // drained by at most one game-thread task at a time
     TQueue<FUDPData> ReceivedDataQueue;
-    FCriticalSection DataQueueCS;
+    std::atomic<bool> bDrainScheduled;
+    TWeakObjectPtr<UUDPReceiver> WeakThis;
 
     // Core functions
     void ProcessReceivedData(const TArray<uint8>& Data, const FString& SenderIP, int32 SenderPort);
+    void DrainReceivedData();
 
 private:
     // Internal cleanup

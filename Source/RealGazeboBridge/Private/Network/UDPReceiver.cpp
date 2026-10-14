@@ -11,6 +11,7 @@
 UUDPReceiver::UUDPReceiver()
     : bStopRequested(false)  // Atomic initialization
     , bIsListening(false)    // Atomic initialization
+    , bDrainScheduled(false)
 {
     ListenSocket = nullptr;
     ReceiverThread = nullptr;
@@ -99,6 +100,7 @@ bool UUDPReceiver::StartListening(int32 Port, const FString& IPAddress)
 
     bStopRequested = false;
     bIsListening = true;
+    WeakThis = this;  // set on the game thread; drain tasks hold a copy, never a raw this
 
     // Start receiver thread
     ReceiverThread = FRunnableThread::Create(this, TEXT("UDPReceiverThread"), 0, TPri_Normal);
@@ -237,23 +239,39 @@ void UUDPReceiver::ProcessReceivedData(const TArray<uint8>& Data, const FString&
     UDPData.SenderIP = SenderIP;
     UDPData.SenderPort = SenderPort;
 
-    // Add to queue for main thread processing
-    {
-        FScopeLock Lock(&DataQueueCS);
-        ReceivedDataQueue.Enqueue(UDPData);
-    }
-
     // Trigger event on game thread
     if (IsInGameThread())
     {
         OnDataReceived.Broadcast(UDPData);
+        return;
     }
-    else
+
+    // Queue for the game thread and schedule a drain task only when none is pending: a task
+    // per packet costs a task-graph allocation each, thousands per second with a few hundred
+    // vehicles.
+    ReceivedDataQueue.Enqueue(MoveTemp(UDPData));
+    if (!bDrainScheduled.exchange(true))
     {
-        AsyncTask(ENamedThreads::GameThread, [this, UDPData]()
+        AsyncTask(ENamedThreads::GameThread, [Receiver = WeakThis]()
         {
-            OnDataReceived.Broadcast(UDPData);
+            if (UUDPReceiver* Self = Receiver.Get())
+            {
+                Self->DrainReceivedData();
+            }
         });
+    }
+}
+
+void UUDPReceiver::DrainReceivedData()
+{
+    // Clear the flag first: a packet queued while draining schedules the next task
+    // instead of waiting for one.
+    bDrainScheduled = false;
+
+    FUDPData UDPData;
+    while (ReceivedDataQueue.Dequeue(UDPData))
+    {
+        OnDataReceived.Broadcast(UDPData);
     }
 }
 
