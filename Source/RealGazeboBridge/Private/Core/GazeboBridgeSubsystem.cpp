@@ -106,20 +106,39 @@ FString UGazeboBridgeSubsystem::ResolveGazeboHostIP() const
 
 void UGazeboBridgeSubsystem::NotifyGazeboHost(const FString& SenderIP)
 {
-    if (!SenderIP.IsEmpty() && LearnedGazeboHostIP != SenderIP)
+    if (SenderIP.IsEmpty())
     {
-        LearnedGazeboHostIP = SenderIP;
-        UE_LOG(LogRealGazeboBridge, Display,
-               TEXT("Runtime commands (spawn/despawn/wind) will target simulation host %s:%d"),
-               *SenderIP, SpawnCommandPort);
-        // First contact with this sim: find out whether it already has wind
-        // (a previous session may have left some blowing). The manager may
-        // open its command port a little after its first vehicle starts
-        // streaming, so keep asking until it answers.
-        WindQueryAttemptsLeft = 5;
-        bAwaitingWorldWindState = true;
-        RetryWorldWindQuery();
+        return;
     }
+
+    const double Now = FPlatformTime::Seconds();
+    if (LearnedGazeboHostIP == SenderIP)
+    {
+        LearnedGazeboHostLastSeen = Now;
+        return;
+    }
+
+    // Several simulators may stream here (e.g. one gz server per container, each with its own
+    // address). Switching to every new sender would flip the host on every packet and restart
+    // the wind query each time, so keep the learned host while it is still streaming.
+    constexpr double HostTakeoverSeconds = 2.0;
+    if (!LearnedGazeboHostIP.IsEmpty() && Now - LearnedGazeboHostLastSeen < HostTakeoverSeconds)
+    {
+        return;
+    }
+
+    LearnedGazeboHostIP = SenderIP;
+    LearnedGazeboHostLastSeen = Now;
+    UE_LOG(LogRealGazeboBridge, Display,
+           TEXT("Runtime commands (spawn/despawn/wind) will target simulation host %s:%d"),
+           *SenderIP, SpawnCommandPort);
+    // First contact with this sim: find out whether it already has wind
+    // (a previous session may have left some blowing). The manager may
+    // open its command port a little after its first vehicle starts
+    // streaming, so keep asking until it answers.
+    WindQueryAttemptsLeft = 5;
+    bAwaitingWorldWindState = true;
+    RetryWorldWindQuery();
 }
 
 void UGazeboBridgeSubsystem::RetryWorldWindQuery()

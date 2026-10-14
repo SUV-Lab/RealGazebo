@@ -286,6 +286,10 @@ protected:
     /** Sim host learned from incoming packets (used when GazeboHostIP empty) */
     FString LearnedGazeboHostIP;
 
+    /** Last packet from LearnedGazeboHostIP (FPlatformTime seconds): another
+     *  sender takes over only after the learned host has gone quiet */
+    double LearnedGazeboHostLastSeen = 0.0;
+
     /** Auto-query on first contact: the sim's command port may still be
      *  coming up while its first vehicle already streams, so the query is
      *  repeated (1 Hz, a few attempts) until an answer arrives. */
