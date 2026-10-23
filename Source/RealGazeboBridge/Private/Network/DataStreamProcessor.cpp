@@ -322,9 +322,10 @@ void UDataStreamProcessor::ProcessSinglePacket(const FUDPData& PacketData)
                 BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 5),
                 BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 9));
             const float Radius = BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 13) * 100.0f;
+            const float DurationSeconds = BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 17);
             if (UGazeboBridgeSubsystem* Subsystem = BridgeSubsystem.Get())
             {
-                Subsystem->NotifyFireIgnited(FireId, Location, Radius);
+                Subsystem->NotifyFireIgnited(FireId, Location, Radius, DurationSeconds);
             }
             break;
         }

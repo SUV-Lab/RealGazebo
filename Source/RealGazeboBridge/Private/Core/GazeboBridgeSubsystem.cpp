@@ -250,12 +250,13 @@ void UGazeboBridgeSubsystem::NotifyWorldWindState(bool bEnabled, const FVector& 
     OnWorldWindStateReceived.Broadcast(bEnabled, GazeboWindVelocity);
 }
 
-bool UGazeboBridgeSubsystem::SendFireIgnite(int32 FireId, FVector Location, float Radius)
+bool UGazeboBridgeSubsystem::SendFireIgnite(int32 FireId, FVector Location, float Radius, float DurationSeconds)
 {
-    if (FireId < 0 || FireId > 255 || Location.ContainsNaN() || !FMath::IsFinite(Radius) || Radius < 0.0f)
+    if (FireId < 0 || FireId > 255 || Location.ContainsNaN() || !FMath::IsFinite(Radius) || Radius < 0.0f ||
+        !FMath::IsFinite(DurationSeconds) || DurationSeconds < 0.0f)
     {
         UE_LOG(LogRealGazeboBridge, Warning,
-               TEXT("SendFireIgnite: invalid fire id %d or location/radius - command not sent"), FireId);
+               TEXT("SendFireIgnite: invalid fire id %d or location/radius/duration - command not sent"), FireId);
         return false;
     }
 
@@ -266,12 +267,12 @@ bool UGazeboBridgeSubsystem::SendFireIgnite(int32 FireId, FVector Location, floa
         return false;
     }
 
-    const bool bSent = Sender->SendFireIgnite(static_cast<uint8>(FireId), Location, Radius);
+    const bool bSent = Sender->SendFireIgnite(static_cast<uint8>(FireId), Location, Radius, DurationSeconds);
     if (bSent)
     {
         UE_LOG(LogRealGazeboBridge, Display,
-               TEXT("Fire ignite sent: id=%d at %s r=%.0fcm -> %s:%d"),
-               FireId, *Location.ToString(), Radius, *HostIP, SpawnCommandPort);
+               TEXT("Fire ignite sent: id=%d at %s r=%.0fcm duration=%.0fs -> %s:%d"),
+               FireId, *Location.ToString(), Radius, DurationSeconds, *HostIP, SpawnCommandPort);
     }
     return bSent;
 }
@@ -299,11 +300,11 @@ bool UGazeboBridgeSubsystem::SendFireExtinguish(int32 FireId)
     return bSent;
 }
 
-void UGazeboBridgeSubsystem::NotifyFireIgnited(int32 FireId, const FVector& Location, float Radius)
+void UGazeboBridgeSubsystem::NotifyFireIgnited(int32 FireId, const FVector& Location, float Radius, float DurationSeconds)
 {
-    UE_LOG(LogRealGazeboBridge, Display, TEXT("Fire ignited by sim: id=%d at %s r=%.0fcm"),
-           FireId, *Location.ToString(), Radius);
-    OnFireIgnited.Broadcast(FireId, Location, Radius);
+    UE_LOG(LogRealGazeboBridge, Display, TEXT("Fire ignited by sim: id=%d at %s r=%.0fcm duration=%.0fs"),
+           FireId, *Location.ToString(), Radius, DurationSeconds);
+    OnFireIgnited.Broadcast(FireId, Location, Radius, DurationSeconds);
 }
 
 void UGazeboBridgeSubsystem::NotifyFireState(int32 FireId, const TArray<FBridgeFirePolygon>& Polygons)

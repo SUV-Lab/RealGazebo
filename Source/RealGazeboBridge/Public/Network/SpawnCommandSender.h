@@ -63,10 +63,11 @@ public:
      *  UGazeboBridgeSubsystem::NotifyWorldWindState. */
     bool SendWindQuery();
 
-    /** Fire ignite: [0][0][0x07] + [fire_id:u8] + 4 little-endian floats
-     *  (gz x, y, z in meters + radius in meters). Location and radius are
-     *  given in Unreal units (cm) and converted like spawn. */
-    bool SendFireIgnite(uint8 FireId, const FVector& UnrealLocation, float UnrealRadius);
+    /** Fire ignite: [0][0][0x07] + [fire_id:u8] + 5 little-endian floats
+     *  (gz x, y, z in meters + radius in meters + duration in seconds,
+     *  0 = until extinguished). Location and radius are given in Unreal
+     *  units (cm) and converted like spawn. */
+    bool SendFireIgnite(uint8 FireId, const FVector& UnrealLocation, float UnrealRadius, float DurationSeconds);
 
     /** Fire extinguish: [0][0][0x09] + [fire_id:u8]. */
     bool SendFireExtinguish(uint8 FireId);

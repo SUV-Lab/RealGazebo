@@ -152,10 +152,11 @@ bool USpawnCommandSender::SendWindQuery()
     return SendPacket(Packet);
 }
 
-bool USpawnCommandSender::SendFireIgnite(uint8 FireId, const FVector& UnrealLocation, float UnrealRadius)
+bool USpawnCommandSender::SendFireIgnite(uint8 FireId, const FVector& UnrealLocation, float UnrealRadius,
+                                        float DurationSeconds)
 {
     TArray<uint8> Packet;
-    Packet.Reserve(20); // header(3) + fire_id(1) + 4 floats(16)
+    Packet.Reserve(24); // header(3) + fire_id(1) + 5 floats(20)
     Packet.Add(0);      // world-level message: header ids unused
     Packet.Add(0);
     Packet.Add(MSG_FIRE_IGNITE);
@@ -165,6 +166,7 @@ bool USpawnCommandSender::SendFireIgnite(uint8 FireId, const FVector& UnrealLoca
     AppendFloatLE(Packet, static_cast<float>(-UnrealLocation.Y / 100.0));
     AppendFloatLE(Packet, static_cast<float>(UnrealLocation.Z / 100.0));
     AppendFloatLE(Packet, UnrealRadius / 100.0f);
+    AppendFloatLE(Packet, DurationSeconds);
 
     return SendPacket(Packet);
 }

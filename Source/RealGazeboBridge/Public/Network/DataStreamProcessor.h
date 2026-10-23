@@ -154,7 +154,7 @@ protected:
     static constexpr int32 EXPECTED_POSE_PACKET_SIZE = PACKET_HEADER_SIZE + POSE_PAYLOAD_SIZE;
     static constexpr int32 WIND_PAYLOAD_SIZE = 13; // enable (u8) + 3 floats (wind velocity)
     static constexpr int32 EXPECTED_WIND_PACKET_SIZE = PACKET_HEADER_SIZE + WIND_PAYLOAD_SIZE;
-    static constexpr int32 EXPECTED_FIRE_IGNITE_PACKET_SIZE = PACKET_HEADER_SIZE + 1 + 16; // fire_id + x,y,z,radius
+    static constexpr int32 EXPECTED_FIRE_IGNITE_PACKET_SIZE = PACKET_HEADER_SIZE + 1 + 20; // fire_id + x,y,z,radius,duration
     static constexpr int32 EXPECTED_FIRE_REMOVE_PACKET_SIZE = PACKET_HEADER_SIZE + 1;      // fire_id
     static constexpr int32 FIRE_VERTEX_SIZE = 16;                                          // x,y,z,flame_len
 

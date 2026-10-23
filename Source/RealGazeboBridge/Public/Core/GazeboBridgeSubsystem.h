@@ -20,10 +20,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWorldWindStateReceived,
                                              FVector, GazeboWindVelocity);
 
 /** Fire events (game thread). Locations are Unreal world space (cm). */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnFireIgnited,
-                                               int32, FireId,
-                                               FVector, Location,
-                                               float, Radius);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnFireIgnited,
+                                              int32, FireId,
+                                              FVector, Location,
+                                              float, Radius,
+                                              float, DurationSeconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFireStateReceived,
                                              int32, FireId,
                                              const TArray<FBridgeFirePolygon>&, Polygons);
@@ -160,11 +161,13 @@ public:
 
     /** Ask the simulation to start a fire (MessageID=7). Location and
      *  Radius are Unreal world space (cm); FireId 0-255 is shared with the
-     *  sim (like vehicle nums). The sim ignores an id it already has and
-     *  otherwise answers with MessageID=8 fire-state packets. Returns false
-     *  when the id is out of range or the host is unknown. */
+     *  sim (like vehicle nums). DurationSeconds is how long the fire burns
+     *  before the sim puts it out itself (MessageID=9); 0 burns until
+     *  extinguished. The sim ignores an id it already has and otherwise
+     *  answers with MessageID=8 fire-state packets. Returns false when the
+     *  id is out of range or the host is unknown. */
     UFUNCTION(BlueprintCallable, Category = "Bridge|Fire")
-    bool SendFireIgnite(int32 FireId, FVector Location, float Radius);
+    bool SendFireIgnite(int32 FireId, FVector Location, float Radius, float DurationSeconds = 0.0f);
 
     /** Ask the simulation to put a fire out (MessageID=9). The sim
      *  confirms with its own MessageID=9 (OnFireRemoved). */
@@ -172,7 +175,7 @@ public:
     bool SendFireExtinguish(int32 FireId);
 
     /** Called by DataStreamProcessor for fire packets from the sim. */
-    void NotifyFireIgnited(int32 FireId, const FVector& Location, float Radius);
+    void NotifyFireIgnited(int32 FireId, const FVector& Location, float Radius, float DurationSeconds);
     void NotifyFireState(int32 FireId, const TArray<FBridgeFirePolygon>& Polygons);
     void NotifyFireRemoved(int32 FireId);
 
