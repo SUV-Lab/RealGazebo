@@ -15,6 +15,8 @@ namespace
     constexpr uint8 MSG_WIND = 6;    // world wind: op byte + 3 floats
     // MSG_WIND op byte: 0 = wind off, 1 = wind on, 2 = query current state
     constexpr uint8 WIND_OP_QUERY = 2;
+    constexpr uint8 MSG_FIRE_IGNITE = 7;
+    constexpr uint8 MSG_FIRE_REMOVE = 9;
 }
 
 bool USpawnCommandSender::SetDestination(const FString& HostOrIP, int32 Port)
@@ -146,6 +148,35 @@ bool USpawnCommandSender::SendWindQuery()
     AppendFloatLE(Packet, 0.0f);
     AppendFloatLE(Packet, 0.0f);
     AppendFloatLE(Packet, 0.0f);
+
+    return SendPacket(Packet);
+}
+
+bool USpawnCommandSender::SendFireIgnite(uint8 FireId, const FVector& UnrealLocation, float UnrealRadius)
+{
+    TArray<uint8> Packet;
+    Packet.Reserve(20); // header(3) + fire_id(1) + 4 floats(16)
+    Packet.Add(0);      // world-level message: header ids unused
+    Packet.Add(0);
+    Packet.Add(MSG_FIRE_IGNITE);
+    Packet.Add(FireId);
+    // Same Unreal -> Gazebo mapping as spawn: cm -> m, Y flipped.
+    AppendFloatLE(Packet, static_cast<float>(UnrealLocation.X / 100.0));
+    AppendFloatLE(Packet, static_cast<float>(-UnrealLocation.Y / 100.0));
+    AppendFloatLE(Packet, static_cast<float>(UnrealLocation.Z / 100.0));
+    AppendFloatLE(Packet, UnrealRadius / 100.0f);
+
+    return SendPacket(Packet);
+}
+
+bool USpawnCommandSender::SendFireExtinguish(uint8 FireId)
+{
+    TArray<uint8> Packet;
+    Packet.Reserve(4);
+    Packet.Add(0);
+    Packet.Add(0);
+    Packet.Add(MSG_FIRE_REMOVE);
+    Packet.Add(FireId);
 
     return SendPacket(Packet);
 }

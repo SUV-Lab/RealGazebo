@@ -250,6 +250,73 @@ void UGazeboBridgeSubsystem::NotifyWorldWindState(bool bEnabled, const FVector& 
     OnWorldWindStateReceived.Broadcast(bEnabled, GazeboWindVelocity);
 }
 
+bool UGazeboBridgeSubsystem::SendFireIgnite(int32 FireId, FVector Location, float Radius)
+{
+    if (FireId < 0 || FireId > 255 || Location.ContainsNaN() || !FMath::IsFinite(Radius) || Radius < 0.0f)
+    {
+        UE_LOG(LogRealGazeboBridge, Warning,
+               TEXT("SendFireIgnite: invalid fire id %d or location/radius - command not sent"), FireId);
+        return false;
+    }
+
+    FString HostIP;
+    USpawnCommandSender* Sender = PrepareCommandSender(TEXT("SendFireIgnite"), HostIP);
+    if (!Sender)
+    {
+        return false;
+    }
+
+    const bool bSent = Sender->SendFireIgnite(static_cast<uint8>(FireId), Location, Radius);
+    if (bSent)
+    {
+        UE_LOG(LogRealGazeboBridge, Display,
+               TEXT("Fire ignite sent: id=%d at %s r=%.0fcm -> %s:%d"),
+               FireId, *Location.ToString(), Radius, *HostIP, SpawnCommandPort);
+    }
+    return bSent;
+}
+
+bool UGazeboBridgeSubsystem::SendFireExtinguish(int32 FireId)
+{
+    if (FireId < 0 || FireId > 255)
+    {
+        return false;
+    }
+
+    FString HostIP;
+    USpawnCommandSender* Sender = PrepareCommandSender(TEXT("SendFireExtinguish"), HostIP);
+    if (!Sender)
+    {
+        return false;
+    }
+
+    const bool bSent = Sender->SendFireExtinguish(static_cast<uint8>(FireId));
+    if (bSent)
+    {
+        UE_LOG(LogRealGazeboBridge, Display,
+               TEXT("Fire extinguish sent: id=%d -> %s:%d"), FireId, *HostIP, SpawnCommandPort);
+    }
+    return bSent;
+}
+
+void UGazeboBridgeSubsystem::NotifyFireIgnited(int32 FireId, const FVector& Location, float Radius)
+{
+    UE_LOG(LogRealGazeboBridge, Display, TEXT("Fire ignited by sim: id=%d at %s r=%.0fcm"),
+           FireId, *Location.ToString(), Radius);
+    OnFireIgnited.Broadcast(FireId, Location, Radius);
+}
+
+void UGazeboBridgeSubsystem::NotifyFireState(int32 FireId, const TArray<FBridgeFirePolygon>& Polygons)
+{
+    OnFireStateReceived.Broadcast(FireId, Polygons);
+}
+
+void UGazeboBridgeSubsystem::NotifyFireRemoved(int32 FireId)
+{
+    UE_LOG(LogRealGazeboBridge, Display, TEXT("Fire removed by sim: id=%d"), FireId);
+    OnFireRemoved.Broadcast(FireId);
+}
+
 bool UGazeboBridgeSubsystem::DespawnVehicle(const FVehicleID& VehicleID)
 {
     FString HostIP;

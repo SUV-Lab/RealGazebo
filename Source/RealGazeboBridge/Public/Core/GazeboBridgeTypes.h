@@ -350,6 +350,34 @@ inline FString NavigationStateToString(ENavigationState NavState)
 }
 
 //----------------------------------------------------------
+// Fire (MessageID 7/8/9)
+//----------------------------------------------------------
+
+/** One fire-line vertex, already converted to Unreal world space (cm). */
+USTRUCT(BlueprintType)
+struct REALGAZEBOBRIDGE_API FBridgeFirePoint
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Bridge|Fire")
+    FVector Location = FVector::ZeroVector;
+
+    /** Flame length at this vertex in meters, as sent by the sim (0 = use default). */
+    UPROPERTY(BlueprintReadOnly, Category = "Bridge|Fire")
+    float FlameLength = 0.0f;
+};
+
+/** One closed fire polygon (boundary order, no repeated first vertex). */
+USTRUCT(BlueprintType)
+struct REALGAZEBOBRIDGE_API FBridgeFirePolygon
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "Bridge|Fire")
+    TArray<FBridgeFirePoint> Points;
+};
+
+//----------------------------------------------------------
 // Event Delegates
 //----------------------------------------------------------
 

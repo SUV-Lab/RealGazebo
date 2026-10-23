@@ -142,7 +142,10 @@ bool UUDPReceiver::Init()
 
 uint32 UUDPReceiver::Run()
 {
-    uint8 ReceiveBuffer[1024]; // Buffer for incoming data
+    // Sized for the largest UDP datagram so variable-length messages
+    // (fire polygons, MessageID=8) are never truncated.
+    TArray<uint8> ReceiveBuffer;
+    ReceiveBuffer.SetNumUninitialized(65536);
     
     while (!bStopRequested)
     {
@@ -166,13 +169,13 @@ uint32 UUDPReceiver::Run()
             int32 BytesRead = 0;
 
             // Receive data
-            if (ListenSocket->RecvFrom(ReceiveBuffer, sizeof(ReceiveBuffer), BytesRead, *SenderAddr))
+            if (ListenSocket->RecvFrom(ReceiveBuffer.GetData(), ReceiveBuffer.Num(), BytesRead, *SenderAddr))
             {
                 if (BytesRead > 0)
                 {
                     // Create array from received data
                     TArray<uint8> ReceivedData;
-                    ReceivedData.Append(ReceiveBuffer, BytesRead);
+                    ReceivedData.Append(ReceiveBuffer.GetData(), BytesRead);
 
                     // Get sender information
                     FString SenderIP = SenderAddr->ToString(false);

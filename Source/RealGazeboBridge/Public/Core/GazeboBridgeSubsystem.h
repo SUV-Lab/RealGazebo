@@ -19,6 +19,17 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWorldWindStateReceived,
                                              bool, bEnabled,
                                              FVector, GazeboWindVelocity);
 
+/** Fire events (game thread). Locations are Unreal world space (cm). */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnFireIgnited,
+                                               int32, FireId,
+                                               FVector, Location,
+                                               float, Radius);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFireStateReceived,
+                                             int32, FireId,
+                                             const TArray<FBridgeFirePolygon>&, Polygons);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFireRemoved,
+                                            int32, FireId);
+
 // Forward declarations
 class UDataStreamProcessor;
 class UVehiclePoolManager;
@@ -147,6 +158,24 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Bridge|Environment")
     bool RequestWorldWindState();
 
+    /** Ask the simulation to start a fire (MessageID=7). Location and
+     *  Radius are Unreal world space (cm); FireId 0-255 is shared with the
+     *  sim (like vehicle nums). The sim ignores an id it already has and
+     *  otherwise answers with MessageID=8 fire-state packets. Returns false
+     *  when the id is out of range or the host is unknown. */
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Fire")
+    bool SendFireIgnite(int32 FireId, FVector Location, float Radius);
+
+    /** Ask the simulation to put a fire out (MessageID=9). The sim
+     *  confirms with its own MessageID=9 (OnFireRemoved). */
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Fire")
+    bool SendFireExtinguish(int32 FireId);
+
+    /** Called by DataStreamProcessor for fire packets from the sim. */
+    void NotifyFireIgnited(int32 FireId, const FVector& Location, float Radius);
+    void NotifyFireState(int32 FireId, const TArray<FBridgeFirePolygon>& Polygons);
+    void NotifyFireRemoved(int32 FireId);
+
     /** Smallest vehicle num not in use across ALL types (or -1 when full).
      *  Nums must be globally unique: the sim keys ports/namespaces by num. */
     UFUNCTION(BlueprintCallable, Category = "Bridge|Spawn")
@@ -234,6 +263,18 @@ public:
     /** The simulation reported its world wind (answer to RequestWorldWindState). */
     UPROPERTY(BlueprintAssignable, Category = "Bridge|Events")
     FOnWorldWindStateReceived OnWorldWindStateReceived;
+
+    /** The simulation started a fire (MessageID=7 from the sim). */
+    UPROPERTY(BlueprintAssignable, Category = "Bridge|Events")
+    FOnFireIgnited OnFireIgnited;
+
+    /** A fire's current fire line (MessageID=8), 1-2 Hz per fire. */
+    UPROPERTY(BlueprintAssignable, Category = "Bridge|Events")
+    FOnFireStateReceived OnFireStateReceived;
+
+    /** A fire is gone (MessageID=9 from the sim). */
+    UPROPERTY(BlueprintAssignable, Category = "Bridge|Events")
+    FOnFireRemoved OnFireRemoved;
 
     //----------------------------------------------------------
     // Performance Monitoring

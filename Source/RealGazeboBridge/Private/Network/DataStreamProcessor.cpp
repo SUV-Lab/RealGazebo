@@ -309,6 +309,57 @@ void UDataStreamProcessor::ProcessSinglePacket(const FUDPData& PacketData)
             }
             break;
         }
+        case 7: // Fire ignited by the sim (temporary until MSG 8 alone announces new fires)
+        {
+            if (PacketData.Data.Num() != EXPECTED_FIRE_IGNITE_PACKET_SIZE)
+            {
+                TotalInvalidPackets++;
+                break;
+            }
+            const int32 FireId = PacketData.Data[PACKET_HEADER_SIZE];
+            const FVector Location = ConvertGazeboPositionToUnreal(
+                BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 1),
+                BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 5),
+                BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 9));
+            const float Radius = BytesToFloat(PacketData.Data, PACKET_HEADER_SIZE + 13) * 100.0f;
+            if (UGazeboBridgeSubsystem* Subsystem = BridgeSubsystem.Get())
+            {
+                Subsystem->NotifyFireIgnited(FireId, Location, Radius);
+            }
+            break;
+        }
+        case 8: // Fire state: fire line polygons
+        {
+            int32 FireId = 0;
+            TArray<FBridgeFirePolygon> Polygons;
+            if (!ParseFireStatePacket(PacketData.Data, FireId, Polygons))
+            {
+                TotalInvalidPackets++;
+                if (bLogPacketErrors)
+                {
+                    LogPacketError(TEXT("Malformed fire state packet"), PacketData.Data);
+                }
+                break;
+            }
+            if (UGazeboBridgeSubsystem* Subsystem = BridgeSubsystem.Get())
+            {
+                Subsystem->NotifyFireState(FireId, Polygons);
+            }
+            break;
+        }
+        case 9: // Fire removed by the sim
+        {
+            if (PacketData.Data.Num() != EXPECTED_FIRE_REMOVE_PACKET_SIZE)
+            {
+                TotalInvalidPackets++;
+                break;
+            }
+            if (UGazeboBridgeSubsystem* Subsystem = BridgeSubsystem.Get())
+            {
+                Subsystem->NotifyFireRemoved(PacketData.Data[PACKET_HEADER_SIZE]);
+            }
+            break;
+        }
         default:
         {
             TotalInvalidPackets++;
@@ -333,6 +384,45 @@ bool UDataStreamProcessor::ValidatePacketHeader(const TArray<uint8>& Data, uint8
     OutMessageID = Data[2];
     
     return true;
+}
+
+bool UDataStreamProcessor::ParseFireStatePacket(const TArray<uint8>& RawData, int32& OutFireId,
+                                                   TArray<FBridgeFirePolygon>& OutPolygons) const
+{
+    int32 Offset = PACKET_HEADER_SIZE;
+    if (RawData.Num() < Offset + 2)
+    {
+        return false;
+    }
+    OutFireId = RawData[Offset++];
+    const int32 PartCount = RawData[Offset++];
+
+    OutPolygons.Reset(PartCount);
+    for (int32 Part = 0; Part < PartCount; ++Part)
+    {
+        if (RawData.Num() < Offset + 2)
+        {
+            return false;
+        }
+        const int32 VertexCount = RawData[Offset] | (RawData[Offset + 1] << 8);
+        Offset += 2;
+        if (RawData.Num() < Offset + VertexCount * FIRE_VERTEX_SIZE)
+        {
+            return false;
+        }
+
+        FBridgeFirePolygon& Polygon = OutPolygons.AddDefaulted_GetRef();
+        Polygon.Points.Reserve(VertexCount);
+        for (int32 Vertex = 0; Vertex < VertexCount; ++Vertex)
+        {
+            FBridgeFirePoint& Point = Polygon.Points.AddDefaulted_GetRef();
+            Point.Location = ConvertGazeboPositionToUnreal(
+                BytesToFloat(RawData, Offset), BytesToFloat(RawData, Offset + 4), BytesToFloat(RawData, Offset + 8));
+            Point.FlameLength = BytesToFloat(RawData, Offset + 12);
+            Offset += FIRE_VERTEX_SIZE;
+        }
+    }
+    return Offset == RawData.Num();
 }
 
 bool UDataStreamProcessor::ParsePosePacket(const TArray<uint8>& RawData, FBridgePoseData& OutPoseData)
