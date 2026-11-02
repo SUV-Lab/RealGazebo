@@ -125,6 +125,39 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Performance", meta = (EditCondition = "bSmoothMovement"))
     float InterpolationSpeed = 15.0f;
 
+    //----------------------------------------------------------
+    // Visual Scale (Unreal-only; Gazebo physics stays 1x)
+    //----------------------------------------------------------
+
+    /**
+     * Uniform scale applied to VehicleMesh (and everything attached under it) in Unreal only.
+     * The actor transform keeps the exact Gazebo pose, so placement/spawn round-trips are unaffected.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bridge|Visual Scale", meta = (ClampMin = "0.01"))
+    float VisualScale = 1.0f;
+
+    /**
+     * Point of the unscaled vehicle (actor-local, cm) that stays fixed when VisualScale is applied.
+     * Ground vehicles: use the rear-axle ground contact so the scaled vehicle stays on the ground
+     * (also on slopes) and its rear axle follows the Gazebo path.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bridge|Visual Scale")
+    FVector VisualScaleAnchor = FVector::ZeroVector;
+
+    /**
+     * Wheeled vehicles: keep wheel kinematics consistent with the scaled size.
+     * - Motor (wheel) rates are divided by VisualScale so wheel roll matches ground travel.
+     * - Streamed controllable rotations are treated as steering: only the steering yaw is kept
+     *   (Gazebo angle, not widened for the scaled wheelbase). Wheel roll in that stream would turn
+     *   at the unscaled rate, so it is dropped; it must come from RotatingComponents instead.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bridge|Visual Scale")
+    bool bCompensateWheelKinematics = false;
+
+    /** Apply VisualScale / VisualScaleAnchor to VehicleMesh */
+    UFUNCTION(BlueprintCallable, Category = "Bridge|Visual Scale")
+    void ApplyVisualScale();
+
 
     //----------------------------------------------------------
     // Blueprint Events (for customization)
@@ -156,6 +189,7 @@ protected:
     // Pawn Lifecycle
     //----------------------------------------------------------
 
+    virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -219,6 +253,15 @@ protected:
 
     /** Convert motor speed from rad/s to deg/s */
     float ConvertRadiansPerSecToDegPerSec(float RadiansPerSec) const;
+
+    /** Root-attached components were already moved for VisualScale (BeginPlay runs once per pawn) */
+    bool bVisualScaleMovedRootChildren = false;
+
+    /** True when VisualScale differs from 1 */
+    bool HasVisualScale() const { return !FMath::IsNearlyEqual(VisualScale, 1.0f); }
+
+    /** Steering-only rotation (yaw about the vehicle up axis) extracted from a streamed wheel rotation */
+    FQuat ScaleSteeringRotation(const FQuat& StreamedRotation) const;
 
     /** Validate component arrays match configuration */
     bool ValidateComponentConfiguration() const;

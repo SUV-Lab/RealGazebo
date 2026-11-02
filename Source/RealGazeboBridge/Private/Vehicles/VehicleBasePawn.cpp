@@ -42,10 +42,34 @@ AVehicleBasePawn::AVehicleBasePawn()
     bIsInPool = true; // Starts in pool state
 }
 
+void AVehicleBasePawn::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+
+    // editor preview shows the scaled vehicle too
+    ApplyVisualScale();
+}
+
 void AVehicleBasePawn::BeginPlay()
 {
     Super::BeginPlay();
-    
+
+    ApplyVisualScale();
+
+    // Components attached to the root (cameras, spring arm) are not under VehicleMesh, so move them
+    // to the matching spot on the scaled vehicle. Position only: a camera keeps its own FOV.
+    if (HasVisualScale() && !bVisualScaleMovedRootChildren)
+    {
+        bVisualScaleMovedRootChildren = true;
+        for (USceneComponent* Child : RootComponent->GetAttachChildren())
+        {
+            if (Child && Child != VehicleMesh)
+            {
+                Child->SetRelativeLocation(VisualScaleAnchor + VisualScale * (Child->GetRelativeLocation() - VisualScaleAnchor));
+            }
+        }
+    }
+
     InitializeRotatingComponents();
     InitializeControllableComponents();
     
@@ -115,15 +139,27 @@ void AVehicleBasePawn::UpdateMotorSpeeds(const TArray<float>& MotorSpeeds)
 
 void AVehicleBasePawn::UpdateServoStates(const TArray<FVector>& ServoPositions, const TArray<FQuat>& ServoRotations)
 {
+    TArray<FQuat> ScaledRotations;
+    const bool bScaleSteering = bCompensateWheelKinematics && HasVisualScale();
+    if (bScaleSteering)
+    {
+        ScaledRotations.Reserve(ServoRotations.Num());
+        for (const FQuat& Rotation : ServoRotations)
+        {
+            ScaledRotations.Add(ScaleSteeringRotation(Rotation));
+        }
+    }
+    const TArray<FQuat>& AppliedRotations = bScaleSteering ? ScaledRotations : ServoRotations;
+
     if (bSmoothMovement)
     {
         TargetServoPositions = ServoPositions;
-        TargetServoRotations = ServoRotations;
+        TargetServoRotations = AppliedRotations;
         bHasServoTargets = true;
     }
     else
     {
-        ApplyServoStates(ServoPositions, ServoRotations);
+        ApplyServoStates(ServoPositions, AppliedRotations);
     }
     
     // Call Blueprint event
@@ -364,7 +400,12 @@ void AVehicleBasePawn::ApplyMotorSpeeds(const TArray<float>& MotorSpeeds)
             // +Yaw = CW from above): the y-flip frame mapping is a reflection, so
             // angular rates about the up axis must be negated, matching the
             // quaternion conversion (X, -Y, Z, -W) used for poses.
-            const float RotationRateDegPerSec = -MotorSpeeds[i];
+            float RotationRateDegPerSec = -MotorSpeeds[i];
+            if (bCompensateWheelKinematics && HasVisualScale())
+            {
+                // a wheel S times larger covers the same ground distance in 1/S turns
+                RotationRateDegPerSec /= VisualScale;
+            }
             RotatingComp->RotationRate = FRotator(0.0f, RotationRateDegPerSec, 0.0f);
         }
     }
@@ -393,6 +434,31 @@ void AVehicleBasePawn::ApplyServoStates(const TArray<FVector>& Positions, const 
 }
 
 
+
+void AVehicleBasePawn::ApplyVisualScale()
+{
+    if (!VehicleMesh || !HasVisualScale())
+    {
+        return;
+    }
+
+    // Scale about VisualScaleAnchor: the anchor point keeps its unscaled actor-local position.
+    // The offset is actor-local, so it follows the vehicle attitude (slopes included).
+    VehicleMesh->SetRelativeScale3D(FVector(VisualScale));
+    VehicleMesh->SetRelativeLocation((1.0f - VisualScale) * VisualScaleAnchor);
+}
+
+FQuat AVehicleBasePawn::ScaleSteeringRotation(const FQuat& StreamedRotation) const
+{
+    // The streamed wheel link rotation is yaw(steer) * roll about the axle (Y). The axle direction
+    // does not depend on the roll, so the steering yaw is read from where the Y axis ends up.
+    const FVector Axle = StreamedRotation.RotateVector(FVector::RightVector);
+    const float SteerRad = FMath::Atan2(-Axle.X, Axle.Y);
+
+    // Keep the Gazebo steering angle as is: the no-slip angle for the scaled wheelbase,
+    // atan(S * tan(steer)), is exact but looks unnatural (30 deg -> 66 deg at S = 4).
+    return FQuat(FVector::UpVector, SteerRad);
+}
 
 float AVehicleBasePawn::ConvertRadiansPerSecToDegPerSec(float RadiansPerSec) const
 {
