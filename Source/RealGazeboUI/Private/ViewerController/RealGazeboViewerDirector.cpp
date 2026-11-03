@@ -7,6 +7,7 @@
 #include "ViewerController/RealGazeboViewerDirector.h"
 #include "ViewerController/RealGazeboBlueprintLib.h"
 #include "ViewerController/RealGazeboCameraControllerComponent.h"
+#include "ViewerController/RealGazeboThirdPersonCameraComponent.h"
 #include "Vehicles/VehicleBasePawn.h"
 #include "GameFramework/DefaultPawn.h"
 #include "GameFramework/PlayerController.h"
@@ -16,7 +17,7 @@
 
 ARealGazeboViewerDirector::ARealGazeboViewerDirector()
 {
-    PrimaryActorTick.bCanEverTick = false; // No longer need ticking
+    PrimaryActorTick.bCanEverTick = true; // World Fixed chase camera orbit input
 
     // Initialize state - start with no specific mode until user input
     CurrentMode = ERealGazeboViewerMode::Manual; // Default to manual but don't use original pawn yet
@@ -112,6 +113,68 @@ void ARealGazeboViewerDirector::EndPlay(const EEndPlayReason::Type EndPlayReason
     }
 
     Super::EndPlay(EndPlayReason);
+}
+
+void ARealGazeboViewerDirector::Tick(float DeltaSeconds)
+{
+    Super::Tick(DeltaSeconds);
+
+    if (CurrentMode != ERealGazeboViewerMode::ThirdPerson || !IsValid(CurrentVehicle))
+    {
+        return;
+    }
+    URealGazeboThirdPersonCameraComponent* Chase = FindChaseCamera(CurrentVehicle);
+    APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+    if (!Chase || !Chase->IsCameraActive() || Chase->GetHeadingMode() != ERealGazeboChaseHeadingMode::WorldFixed
+        || !PC || PC->GetPawn() != CurrentVehicle)
+    {
+        return;
+    }
+
+    // Keys reach PlayerInput only when no text field holds focus
+    auto Axis = [PC](const FKey& Positive, const FKey& Negative)
+    {
+        return (PC->IsInputKeyDown(Positive) ? 1.0f : 0.0f) - (PC->IsInputKeyDown(Negative) ? 1.0f : 0.0f);
+    };
+    const float YawInput = Axis(EKeys::D, EKeys::A);
+    const float PitchInput = Axis(EKeys::S, EKeys::W); // W raises the camera (looks further down)
+    float Zoom = 1.0f;
+    if (PC->WasInputKeyJustPressed(EKeys::MouseScrollUp))
+    {
+        Zoom *= 1.0f - ChaseZoomStep;
+    }
+    if (PC->WasInputKeyJustPressed(EKeys::MouseScrollDown))
+    {
+        Zoom *= 1.0f + ChaseZoomStep;
+    }
+
+    if (YawInput != 0.0f || PitchInput != 0.0f || Zoom != 1.0f)
+    {
+        Chase->AddWorldFixedOrbit(YawInput * ChaseOrbitYawSpeed * DeltaSeconds, PitchInput * ChaseOrbitPitchSpeed * DeltaSeconds, Zoom);
+    }
+}
+
+URealGazeboThirdPersonCameraComponent* ARealGazeboViewerDirector::FindChaseCamera(AVehicleBasePawn* Vehicle) const
+{
+    return IsValid(Vehicle) ? Vehicle->FindComponentByClass<URealGazeboThirdPersonCameraComponent>() : nullptr;
+}
+
+bool ARealGazeboViewerDirector::ToggleChaseHeadingIfActive(AVehicleBasePawn* Vehicle)
+{
+    APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+    if (CurrentMode != ERealGazeboViewerMode::ThirdPerson || !IsValid(Vehicle) || Vehicle != CurrentVehicle || !PC || PC->GetPawn() != Vehicle)
+    {
+        return false;
+    }
+    URealGazeboThirdPersonCameraComponent* Chase = FindChaseCamera(Vehicle);
+    if (!Chase || !Chase->IsCameraActive())
+    {
+        return false;
+    }
+
+    Chase->SetHeadingMode(Chase->GetHeadingMode() == ERealGazeboChaseHeadingMode::FollowHeading
+        ? ERealGazeboChaseHeadingMode::WorldFixed : ERealGazeboChaseHeadingMode::FollowHeading);
+    return true;
 }
 
 void ARealGazeboViewerDirector::InitializeForBeginPlay()
@@ -233,7 +296,9 @@ void ARealGazeboViewerDirector::SetCameraMode(ERealGazeboViewerMode NewMode)
         SwitchToFirstPersonMode();
         break;
     case ERealGazeboViewerMode::ThirdPerson:
+        bEnteringThirdPerson = true;
         SwitchToThirdPersonMode();
+        bEnteringThirdPerson = false;
         break;
     }
 }
@@ -459,6 +524,22 @@ void ARealGazeboViewerDirector::SwitchToThirdPersonMode()
     URealGazeboCameraControllerComponent* CameraController = FindCameraControllerForVehicle(CurrentVehicle);
     if (CameraController)
     {
+        // Same chase mode on the next vehicle (< > keys, panel click); a fresh B press starts in Follow Heading
+        if (URealGazeboThirdPersonCameraComponent* Chase = FindChaseCamera(CurrentVehicle))
+        {
+            const bool bCarryChaseState = !bEnteringThirdPerson;
+            URealGazeboThirdPersonCameraComponent* Previous = LastChaseCamera.Get();
+            if (Previous && Previous != Chase && bCarryChaseState)
+            {
+                Chase->CopyChaseStateFrom(*Previous);
+            }
+            else if (!bCarryChaseState)
+            {
+                Chase->SetHeadingMode(ERealGazeboChaseHeadingMode::FollowHeading);
+            }
+            LastChaseCamera = Chase;
+        }
+
         CameraController->ActivateThirdPersonCamera();
         UE_LOG(LogRealGazeboUI, Display, TEXT("ViewerDirector: Switched to Third Person Camera for vehicle %s"), *CurrentVehicle->GetName());
         return;
@@ -607,6 +688,10 @@ void ARealGazeboViewerDirector::InputFirstPersonCamera()
 
 void ARealGazeboViewerDirector::InputThirdPersonCamera()
 {
+    if (ToggleChaseHeadingIfActive(CurrentVehicle))
+    {
+        return;
+    }
     SetCameraMode(ERealGazeboViewerMode::ThirdPerson);
 }
 

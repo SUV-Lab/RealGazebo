@@ -14,8 +14,10 @@
 
 URealGazeboThirdPersonCameraComponent::URealGazeboThirdPersonCameraComponent()
 {
-    // Set this component to NOT be ticked (spring arm handles this)
-    PrimaryComponentTick.bCanEverTick = false;
+    // Ticks only while active: places the arm pivot/rotation (no vehicle roll/pitch), then runs spring arm lag
+    PrimaryComponentTick.bCanEverTick = true;
+    PrimaryComponentTick.bStartWithTickEnabled = false;
+    PrimaryComponentTick.TickGroup = TG_PostPhysics;
 
     // Set component tag for discovery by camera controller
     ComponentTags.Add(FName("ThirdPersonCamera"));
@@ -41,6 +43,12 @@ void URealGazeboThirdPersonCameraComponent::BeginPlay()
     // Configure camera and spring arm settings
     ConfigureCameraSettings();
 
+    // Place the camera after the vehicle pose update of this frame
+    if (AActor* Owner = GetOwner())
+    {
+        PrimaryComponentTick.AddPrerequisite(Owner, Owner->PrimaryActorTick);
+    }
+
     UE_LOG(LogRealGazeboUI, Log, TEXT("ThirdPersonCameraComponent: Initialized on %s"), GetOwner() ? *GetOwner()->GetName() : TEXT("Unknown"));
 }
 
@@ -63,6 +71,14 @@ void URealGazeboThirdPersonCameraComponent::ActivateCamera()
         UE_LOG(LogRealGazeboUI, Warning, TEXT("ThirdPersonCameraComponent: No internal camera component available"));
         return;
     }
+
+    // Take over placement from the attachment: the vehicle's roll/pitch must not reach the camera
+    CaptureChaseBase();
+    SetUsingAbsoluteLocation(true);
+    SetUsingAbsoluteRotation(true);
+    UpdateChaseTransform();
+    UpdateDesiredArmLocation(bDoCollisionTest, false, false, 0.0f); // snap, no lag from a stale position
+    SetComponentTickEnabled(true);
 
     // Activate the internal camera component
     CameraComponent->SetActive(true);
@@ -96,6 +112,16 @@ void URealGazeboThirdPersonCameraComponent::DeactivateCamera()
     }
 
     bCameraActive = false;
+    SetComponentTickEnabled(false);
+
+    // Hand placement back to the attachment
+    if (bChaseBaseCaptured && IsUsingAbsoluteLocation())
+    {
+        SetUsingAbsoluteLocation(false);
+        SetUsingAbsoluteRotation(false);
+        SetRelativeLocationAndRotation(BaseRelativeLocation, BaseRelativeRotation);
+        TargetArmLength = BaseConfiguredArmLength;
+    }
 
     // Fire Blueprint event
     OnCameraDeactivated();
@@ -147,4 +173,117 @@ void URealGazeboThirdPersonCameraComponent::ConfigureSpringArmSettings()
     bInheritRoll = false; // Usually don't want roll for chase cameras
 
     UE_LOG(LogRealGazeboUI, Log, TEXT("ThirdPersonCameraComponent: Spring arm settings configured"));
+}
+//----------------------------------------------------------
+// Stabilized chase view
+//----------------------------------------------------------
+
+void URealGazeboThirdPersonCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+    if (bCameraActive)
+    {
+        UpdateChaseTransform();
+    }
+
+    // Spring arm: camera lag / rotation lag towards the transform set above
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+}
+
+void URealGazeboThirdPersonCameraComponent::CaptureChaseBase()
+{
+    const AActor* Owner = GetOwner();
+    if (bChaseBaseCaptured || !Owner)
+    {
+        return;
+    }
+
+    // Blueprint placement relative to the actor, independent of the vehicle tilt at this moment
+    const FTransform ActorTransform = Owner->GetActorTransform();
+    BasePivotActorLocal = ActorTransform.InverseTransformPosition(GetComponentLocation()) * ActorTransform.GetScale3D();
+    BaseArmRotation = (ActorTransform.GetRotation().Inverse() * GetComponentQuat()).Rotator();
+    BaseRelativeLocation = GetRelativeLocation();
+    BaseRelativeRotation = GetRelativeRotation();
+    BaseConfiguredArmLength = TargetArmLength;
+    BaseArmLength = TargetArmLength;
+
+    LastVehicleYaw = Owner->GetActorRotation().Yaw;
+    bChaseBaseCaptured = true;
+}
+
+float URealGazeboThirdPersonCameraComponent::GetVehicleYaw()
+{
+    if (const AActor* Owner = GetOwner())
+    {
+        // Heading of the forward axis projected on the ground; roll and pitch drop out
+        const FVector Forward = Owner->GetActorForwardVector();
+        if (FVector2D(Forward.X, Forward.Y).SizeSquared() > KINDA_SMALL_NUMBER)
+        {
+            LastVehicleYaw = FMath::RadiansToDegrees(FMath::Atan2(Forward.Y, Forward.X));
+        }
+    }
+    return LastVehicleYaw;
+}
+
+void URealGazeboThirdPersonCameraComponent::UpdateChaseTransform()
+{
+    const AActor* Owner = GetOwner();
+    if (!Owner || !bChaseBaseCaptured)
+    {
+        return;
+    }
+
+    const float VehicleYaw = GetVehicleYaw();
+    const bool bWorldFixed = HeadingMode == ERealGazeboChaseHeadingMode::WorldFixed;
+
+    // Pivot: the configured point on the vehicle, rotated by heading only
+    const FVector Pivot = Owner->GetActorLocation() + FRotator(0.0f, VehicleYaw, 0.0f).RotateVector(BasePivotActorLocal);
+
+    const float Yaw = bWorldFixed ? WorldFixedYaw : VehicleYaw + BaseArmRotation.Yaw;
+    const float Pitch = FMath::Clamp(BaseArmRotation.Pitch + (bWorldFixed ? OrbitPitchOffset : 0.0f), MinChasePitch, MaxChasePitch);
+    TargetArmLength = BaseArmLength * (bWorldFixed ? ArmLengthScale : 1.0f);
+
+    SetWorldLocationAndRotation(Pivot, FRotator(Pitch, Yaw, 0.0f));
+}
+
+void URealGazeboThirdPersonCameraComponent::SetHeadingMode(ERealGazeboChaseHeadingMode NewMode)
+{
+    if (HeadingMode == NewMode)
+    {
+        return;
+    }
+
+    if (NewMode == ERealGazeboChaseHeadingMode::WorldFixed)
+    {
+        // Freeze the direction currently on screen
+        WorldFixedYaw = CameraComponent ? CameraComponent->GetComponentRotation().Yaw : GetComponentRotation().Yaw;
+    }
+    OrbitPitchOffset = 0.0f;
+    ArmLengthScale = 1.0f;
+    HeadingMode = NewMode;
+
+    UE_LOG(LogRealGazeboUI, Log, TEXT("ThirdPersonCameraComponent: Heading mode %s on %s"),
+           NewMode == ERealGazeboChaseHeadingMode::WorldFixed ? TEXT("WorldFixed") : TEXT("FollowHeading"),
+           GetOwner() ? *GetOwner()->GetName() : TEXT("Unknown"));
+}
+
+void URealGazeboThirdPersonCameraComponent::AddWorldFixedOrbit(float DeltaYaw, float DeltaPitch, float ArmLengthMultiplier)
+{
+    if (HeadingMode != ERealGazeboChaseHeadingMode::WorldFixed)
+    {
+        return;
+    }
+
+    WorldFixedYaw = FRotator::NormalizeAxis(WorldFixedYaw + DeltaYaw);
+    const float Pitch = FMath::Clamp(BaseArmRotation.Pitch + OrbitPitchOffset + DeltaPitch, MinChasePitch, MaxChasePitch);
+    OrbitPitchOffset = Pitch - BaseArmRotation.Pitch;
+    ArmLengthScale = FMath::Clamp(ArmLengthScale * ArmLengthMultiplier, MinArmLengthScale, MaxArmLengthScale);
+}
+
+void URealGazeboThirdPersonCameraComponent::CopyChaseStateFrom(const URealGazeboThirdPersonCameraComponent& Other)
+{
+    // Mode and world direction carry over; pitch/zoom are per vehicle type, so start from this camera's own setup
+    HeadingMode = Other.HeadingMode;
+    WorldFixedYaw = Other.WorldFixedYaw;
+    OrbitPitchOffset = 0.0f;
+    ArmLengthScale = 1.0f;
 }

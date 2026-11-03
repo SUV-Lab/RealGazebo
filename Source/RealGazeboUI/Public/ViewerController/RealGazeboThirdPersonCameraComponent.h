@@ -11,6 +11,17 @@
 #include "Camera/CameraComponent.h"
 #include "RealGazeboThirdPersonCameraComponent.generated.h"
 
+/** How the chase camera picks its direction. Vehicle roll and pitch are never inherited. */
+UENUM(BlueprintType)
+enum class ERealGazeboChaseHeadingMode : uint8
+{
+    /** Stays behind the vehicle, following its heading (yaw) only */
+    FollowHeading UMETA(DisplayName = "Follow Heading"),
+
+    /** Follows the vehicle position, camera direction fixed in the world (inertial frame) */
+    WorldFixed UMETA(DisplayName = "World Fixed")
+};
+
 /**
  * Third Person Camera Component for RealGazebo vehicles
  *
@@ -39,6 +50,43 @@ public:
 
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+    //----------------------------------------------------------
+    // Stabilized chase view
+    //----------------------------------------------------------
+
+    /** Current heading mode */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Third Person Camera|Chase")
+    ERealGazeboChaseHeadingMode GetHeadingMode() const { return HeadingMode; }
+
+    /**
+     * Set the heading mode. Entering WorldFixed keeps the current camera direction,
+     * so the view does not jump. Orbit offsets are reset.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Third Person Camera|Chase")
+    void SetHeadingMode(ERealGazeboChaseHeadingMode NewMode);
+
+    /** WorldFixed only: orbit around the vehicle (degrees) and zoom (multiplier on arm length) */
+    UFUNCTION(BlueprintCallable, Category = "Third Person Camera|Chase")
+    void AddWorldFixedOrbit(float DeltaYaw, float DeltaPitch, float ArmLengthMultiplier = 1.0f);
+
+    /** Copy heading mode and WorldFixed direction from another chase camera (used when switching vehicles) */
+    void CopyChaseStateFrom(const URealGazeboThirdPersonCameraComponent& Other);
+
+    /** Lowest / highest camera pitch (degrees, negative looks down) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Third Person Camera|Chase")
+    float MinChasePitch = -85.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Third Person Camera|Chase")
+    float MaxChasePitch = -5.0f;
+
+    /** Arm length zoom range as a multiple of the configured arm length */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Third Person Camera|Chase")
+    float MinArmLengthScale = 0.25f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Third Person Camera|Chase")
+    float MaxArmLengthScale = 5.0f;
 
     //----------------------------------------------------------
     // Camera Settings (User Configurable)
@@ -115,7 +163,31 @@ protected:
     UPROPERTY(BlueprintReadOnly, Category = "Runtime")
     bool bCameraActive = false;
 
+    UPROPERTY(BlueprintReadOnly, Category = "Runtime")
+    ERealGazeboChaseHeadingMode HeadingMode = ERealGazeboChaseHeadingMode::FollowHeading;
+
 private:
+    /** Blueprint-configured placement, captured on first activation (actor-local, unscaled by tilt) */
+    bool bChaseBaseCaptured = false;
+    FVector BasePivotActorLocal = FVector::ZeroVector;
+    FRotator BaseArmRotation = FRotator::ZeroRotator;
+    float BaseArmLength = 400.0f;
+    FVector BaseRelativeLocation = FVector::ZeroVector;
+    FRotator BaseRelativeRotation = FRotator::ZeroRotator;
+    float BaseConfiguredArmLength = 400.0f;
+
+    /** WorldFixed view state */
+    float WorldFixedYaw = 0.0f;
+    float OrbitPitchOffset = 0.0f;
+    float ArmLengthScale = 1.0f;
+
+    /** Last valid vehicle heading (kept when the vehicle points straight up/down) */
+    float LastVehicleYaw = 0.0f;
+
+    void CaptureChaseBase();
+    float GetVehicleYaw();
+    void UpdateChaseTransform();
+
     //----------------------------------------------------------
     // Internal Methods
     //----------------------------------------------------------

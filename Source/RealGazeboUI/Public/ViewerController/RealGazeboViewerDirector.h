@@ -44,6 +44,7 @@ public:
 
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void Tick(float DeltaSeconds) override;
 
     //----------------------------------------------------------
     // Camera Control
@@ -60,6 +61,22 @@ public:
     /** Get the currently followed vehicle */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "RealGazebo|Viewer")
     AVehicleBasePawn* GetCurrentVehicle() const { return CurrentVehicle; }
+
+    /**
+     * B key while the third person camera already follows Vehicle: toggle
+     * Follow Heading <-> World Fixed. Returns false (nothing done) otherwise.
+     */
+    bool ToggleChaseHeadingIfActive(AVehicleBasePawn* Vehicle);
+
+    /** World Fixed orbit speeds (WASD, deg/s) and zoom step per mouse wheel notch */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Camera Settings")
+    float ChaseOrbitYawSpeed = 90.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Camera Settings")
+    float ChaseOrbitPitchSpeed = 60.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RealGazebo|Camera Settings")
+    float ChaseZoomStep = 0.1f;
 
     /** Native event fired when the current vehicle changes through keyboard input */
     FRealGazeboViewerVehicleChangedByInput& OnVehicleChangedByInput() { return VehicleChangedByInputDelegate; }
@@ -217,6 +234,16 @@ private:
 
     /** Find camera controller component for a specific vehicle */
     URealGazeboCameraControllerComponent* FindCameraControllerForVehicle(AVehicleBasePawn* Vehicle) const;
+
+    /** Chase camera of the current vehicle (third person component) */
+    class URealGazeboThirdPersonCameraComponent* FindChaseCamera(AVehicleBasePawn* Vehicle) const;
+
+    /** True while SetCameraMode enters third person (not a vehicle switch inside it) */
+    bool bEnteringThirdPerson = false;
+
+    /** Chase camera that was last active, to carry its heading mode to the next vehicle */
+    UPROPERTY()
+    TWeakObjectPtr<class URealGazeboThirdPersonCameraComponent> LastChaseCamera;
 
     /** Get current camera transform from player controller */
     FTransform GetCurrentCameraTransform() const;
