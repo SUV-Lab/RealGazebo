@@ -218,6 +218,7 @@ void UDataStreamProcessor::ProcessSinglePacket(const FUDPData& PacketData)
             if (ParsePosePacket(PacketData.Data, PoseData))
             {
                 TotalValidPosePackets++;
+                PoseData.ReceiveTime = PacketData.ReceiveTime;
                 HandlePoseData(PoseData);
             }
             else

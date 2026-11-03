@@ -75,9 +75,16 @@ public:
     // Vehicle State Updates (called by subsystem)
     //----------------------------------------------------------
 
-    /** Update vehicle pose from runtime data */
+    /** Set the vehicle pose directly (placement, spawn). Drops any streamed pose samples. */
     UFUNCTION(BlueprintCallable, Category = "Bridge|Updates")
     void UpdateVehiclePose(const FVector& Position, const FQuat& Rotation);
+
+    /**
+     * Add a streamed pose with its arrival time (FPlatformTime::Seconds()).
+     * Poses arrive unevenly (several in one frame, none in the next), so the vehicle is drawn by
+     * interpolating the samples at a clock that runs evenly PoseInterpolationDelay behind the newest one.
+     */
+    void AddPoseSample(const FVector& Position, const FQuat& Rotation, double SampleTime);
 
     /** Update motor speeds */
     UFUNCTION(BlueprintCallable, Category = "Bridge|Updates")
@@ -124,6 +131,18 @@ public:
     /** Interpolation speed for smooth movement */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Performance", meta = (EditCondition = "bSmoothMovement"))
     float InterpolationSpeed = 15.0f;
+
+    /** Streamed poses: how far behind the newest sample the vehicle is drawn (s). Longer than the usual gap between packets. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Performance", meta = (ClampMin = "0", EditCondition = "bSmoothMovement"))
+    float PoseInterpolationDelay = 0.05f;
+
+    /** Streamed poses: no packet for this long (s) means the stream stopped; the vehicle holds its last pose */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Performance", meta = (ClampMin = "0", EditCondition = "bSmoothMovement"))
+    float PoseStreamTimeout = 0.5f;
+
+    /** Streamed poses: a sample farther than this (cm) from the previous one is a teleport, jumped to without interpolation */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bridge|Performance", meta = (ClampMin = "0", EditCondition = "bSmoothMovement"))
+    float PoseTeleportDistance = 200.0f;
 
     //----------------------------------------------------------
     // Visual Scale (Unreal-only; Gazebo physics stays 1x)
@@ -211,6 +230,26 @@ protected:
     TArray<FVector> TargetServoPositions;
     TArray<FQuat> TargetServoRotations;
     bool bHasServoTargets = false;
+
+    /** Streamed pose samples, oldest first, times strictly increasing */
+    struct FPoseSample
+    {
+        double Time;
+        FVector Location;
+        FQuat Rotation;
+    };
+    TArray<FPoseSample> PoseSamples;
+    double LastPoseSampleArrival = 0.0;
+
+    /** Render clock for the samples */
+    bool bPoseClockValid = false;
+    double PoseRenderTime = 0.0;
+    double PosePrevNewest = 0.0;
+    double PoseSourceRate = 1.0;
+    double PoseLead = 0.0;
+
+    void ResetPoseSamples();
+    void PerformSampledMovement(float DeltaTime);
 
     /** Smooth interpolation methods */
     void PerformSmoothMovement(float DeltaTime);

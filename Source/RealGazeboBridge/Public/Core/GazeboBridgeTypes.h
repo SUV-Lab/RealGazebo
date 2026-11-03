@@ -102,6 +102,9 @@ struct REALGAZEBOBRIDGE_API FBridgePoseData
     UPROPERTY(BlueprintReadOnly, Category = "Bridge|Pose Data")
     FRotator Rotation = FRotator::ZeroRotator;
 
+    /** Arrival time of the packet (FPlatformTime::Seconds()); 0 when the pose did not come from the stream */
+    double ReceiveTime = 0.0;
+
     FVehicleID GetVehicleID() const { return FVehicleID(VehicleNum, VehicleType); }
 };
 

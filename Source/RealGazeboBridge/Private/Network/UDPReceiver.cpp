@@ -236,6 +236,7 @@ void UUDPReceiver::ProcessReceivedData(const TArray<uint8>& Data, const FString&
     UDPData.Data = Data;
     UDPData.SenderIP = SenderIP;
     UDPData.SenderPort = SenderPort;
+    UDPData.ReceiveTime = FPlatformTime::Seconds();
 
     // Add to queue for main thread processing
     {

@@ -37,6 +37,7 @@ AVehicleBasePawn::AVehicleBasePawn()
     TargetPosition = FVector::ZeroVector;
     TargetRotation = FQuat::Identity;
     bHasMovementTarget = false;
+    ResetPoseSamples();
     bHasServoTargets = false;
     LastUpdateTime = 0.0f;
     bIsInPool = true; // Starts in pool state
@@ -94,7 +95,11 @@ void AVehicleBasePawn::Tick(float DeltaTime)
     // Perform smooth movement if enabled
     if (bSmoothMovement)
     {
-        if (bHasMovementTarget)
+        if (PoseSamples.Num() > 0)
+        {
+            PerformSampledMovement(DeltaTime);
+        }
+        else if (bHasMovementTarget)
         {
             PerformSmoothMovement(DeltaTime);
         }
@@ -115,6 +120,9 @@ void AVehicleBasePawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void AVehicleBasePawn::UpdateVehiclePose(const FVector& Position, const FQuat& Rotation)
 {
     LastUpdateTime = GetWorld()->GetTimeSeconds();
+
+    // A pose set directly (placement, spawn) wins over samples streamed before it
+    ResetPoseSamples();
 
     if (bSmoothMovement)
     {
@@ -191,6 +199,7 @@ void AVehicleBasePawn::InitializeForPool(const FVehicleID& InVehicleID, uint8 In
     TargetPosition = GetActorLocation();
     TargetRotation = GetActorRotation().Quaternion();
     bHasMovementTarget = false;
+    ResetPoseSamples();
     bHasServoTargets = false;
     
     // Clear component arrays to defaults
@@ -225,6 +234,7 @@ void AVehicleBasePawn::ResetForPool()
     TargetPosition = FVector::ZeroVector;
     TargetRotation = FQuat::Identity;
     bHasMovementTarget = false;
+    ResetPoseSamples();
     bHasServoTargets = false;
     LastUpdateTime = 0.0f;
     
@@ -281,6 +291,7 @@ void AVehicleBasePawn::InitializeVehicleManually(int32 InVehicleNum, uint8 InVeh
     TargetPosition = GetActorLocation();
     TargetRotation = GetActorRotation().Quaternion();
     bHasMovementTarget = false;
+    ResetPoseSamples();
     bHasServoTargets = false;
 
 #if WITH_EDITOR
@@ -293,6 +304,113 @@ void AVehicleBasePawn::InitializeVehicleManually(int32 InVehicleNum, uint8 InVeh
         *VehicleID.ToString(),
         VehicleType,
         *VehicleTypeName);
+}
+
+void AVehicleBasePawn::AddPoseSample(const FVector& Position, const FQuat& Rotation, double SampleTime)
+{
+    LastUpdateTime = GetWorld()->GetTimeSeconds();
+
+    if (!bSmoothMovement)
+    {
+        ResetPoseSamples();
+        bHasMovementTarget = false;
+        SetActorLocationAndRotation(Position, Rotation);
+        return;
+    }
+
+    // Streamed samples take over from a direct target
+    bHasMovementTarget = false;
+
+    if (PoseSamples.Num() > 0)
+    {
+        FPoseSample& Newest = PoseSamples.Last();
+        if (SampleTime == Newest.Time)
+        {
+            Newest.Location = Position;
+            Newest.Rotation = Rotation;
+            LastPoseSampleArrival = FPlatformTime::Seconds();
+            return;
+        }
+        // Time going back or a large jump starts a new stream
+        if (SampleTime < Newest.Time || FVector::Dist(Position, Newest.Location) > PoseTeleportDistance)
+        {
+            ResetPoseSamples();
+        }
+    }
+
+    PoseSamples.Add({ SampleTime, Position, Rotation });
+
+    // Keep about one second of history
+    int32 Drop = 0;
+    while (PoseSamples.Num() - Drop > 2 && PoseSamples.Last().Time - PoseSamples[Drop].Time > 1.0)
+    {
+        ++Drop;
+    }
+    if (Drop > 0)
+    {
+        PoseSamples.RemoveAt(0, Drop, EAllowShrinking::No);
+    }
+    LastPoseSampleArrival = FPlatformTime::Seconds();
+}
+
+void AVehicleBasePawn::ResetPoseSamples()
+{
+    PoseSamples.Reset();
+    bPoseClockValid = false;
+}
+
+void AVehicleBasePawn::PerformSampledMovement(float DeltaTime)
+{
+    if (FPlatformTime::Seconds() - LastPoseSampleArrival > PoseStreamTimeout)
+    {
+        // Stream stopped: hold the last drawn pose
+        bPoseClockValid = false;
+        return;
+    }
+
+    const double Newest = PoseSamples.Last().Time;
+    if (!bPoseClockValid || PoseRenderTime < PoseSamples[0].Time || Newest - PoseRenderTime > PoseStreamTimeout)
+    {
+        // (Re)start the clock PoseInterpolationDelay behind the newest sample
+        bPoseClockValid = true;
+        PoseRenderTime = FMath::Max(Newest - PoseInterpolationDelay, PoseSamples[0].Time);
+        PosePrevNewest = Newest;
+        PoseSourceRate = 1.0;
+        PoseLead = PoseInterpolationDelay;
+    }
+    else if (DeltaTime > 0.0f)
+    {
+        // Advance at the rate the sample times advance (smoothed over ~1 s), nudged to stay PoseInterpolationDelay behind
+        PoseSourceRate += ((Newest - PosePrevNewest) / DeltaTime - PoseSourceRate) * FMath::Min(1.0, DeltaTime / 1.0);
+        PosePrevNewest = Newest;
+        PoseLead += ((Newest - PoseRenderTime) - PoseLead) * FMath::Min(1.0, DeltaTime / 0.5);
+        const double Rate = FMath::Clamp(PoseSourceRate + (PoseLead - PoseInterpolationDelay) * 2.0, 0.0, 2.0);
+        PoseRenderTime = FMath::Min(PoseRenderTime + Rate * DeltaTime, Newest);
+    }
+
+    int32 Hi = PoseSamples.Num() - 1;
+    while (Hi > 0 && PoseSamples[Hi - 1].Time >= PoseRenderTime)
+    {
+        --Hi;
+    }
+
+    FVector Location;
+    FQuat Rotation;
+    if (Hi == 0)
+    {
+        Location = PoseSamples[0].Location;
+        Rotation = PoseSamples[0].Rotation;
+    }
+    else
+    {
+        const FPoseSample& A = PoseSamples[Hi - 1];
+        const FPoseSample& B = PoseSamples[Hi];
+        const double Alpha = (PoseRenderTime - A.Time) / (B.Time - A.Time);
+        Location = FMath::Lerp(A.Location, B.Location, Alpha);
+        Rotation = FQuat::Slerp(A.Rotation, B.Rotation, Alpha);
+    }
+
+    SetActorLocationAndRotation(Location, Rotation, false, nullptr, ETeleportType::TeleportPhysics);
 }
 
 void AVehicleBasePawn::PerformSmoothMovement(float DeltaTime)

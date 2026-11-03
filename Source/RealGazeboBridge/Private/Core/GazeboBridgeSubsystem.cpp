@@ -533,7 +533,15 @@ void UGazeboBridgeSubsystem::UpdateVehicleData(const FBridgePoseData& PoseData)
     // Update visual pawn if it exists
     if (AVehicleBasePawn* VisualPawn = RuntimeData.VisualPawn.Get())
     {
-        VisualPawn->UpdateVehiclePose(RuntimeData.Position, RuntimeData.Rotation);
+        if (PoseData.ReceiveTime > 0.0)
+        {
+            // Streamed pose: interpolated in time by the pawn so it moves evenly however packets bunch up
+            VisualPawn->AddPoseSample(RuntimeData.Position, RuntimeData.Rotation, PoseData.ReceiveTime);
+        }
+        else
+        {
+            VisualPawn->UpdateVehiclePose(RuntimeData.Position, RuntimeData.Rotation);
+        }
     }
     
     // Broadcast event

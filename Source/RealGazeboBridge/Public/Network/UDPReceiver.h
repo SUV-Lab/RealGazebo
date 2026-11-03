@@ -34,11 +34,15 @@ struct FUDPData
     UPROPERTY(BlueprintReadOnly)
     int32 SenderPort;
 
+    /** FPlatformTime::Seconds() when the datagram was read on the receiver thread */
+    double ReceiveTime;
+
     FUDPData()
     {
         Data.Empty();
         SenderIP = TEXT("");
         SenderPort = 0;
+        ReceiveTime = 0.0;
     }
 };
 
